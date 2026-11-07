@@ -42,6 +42,11 @@ export function hitCapsule(b, x1, y1, x2, y2, r, o = {}) {
     const out = rvx * nx + rvy * ny;
     if (out < o.kick) { rvx += (o.kick - out) * nx; rvy += (o.kick - out) * ny; }
   }
+  if (o.jitter && vn < 0) { // 무한 왕복 방지: 튕긴 방향을 아주 조금 무작위로 회전
+    const a = (Math.random() * 2 - 1) * o.jitter;
+    const c = Math.cos(a), s = Math.sin(a);
+    const tx = rvx * c - rvy * s; rvy = rvx * s + rvy * c; rvx = tx;
+  }
   b.vx = rvx + svx; b.vy = rvy + svy;
   return { nx, ny, cx, cy, vn };
 }

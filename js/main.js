@@ -9,6 +9,13 @@ const R = await import('./render.js').catch((e) => (console.warn('[render.js 없
 const U = await import('./ui.js').catch((e) => (console.warn('[ui.js 없음]', e.message), null));
 
 const SUB = C.SUBSTEP;
+const JITTER = 0.09;        // 튕김 방향 무작위 회전 최대치(rad, 약 5°)
+const LOOP_R = 70;          // 이 반경 안에서만 맴돌면 루프로 판단
+const LOOP_TIME = 3;        // 초
+const LOOP_SAFE_Y = 560;    // 이보다 아래(플리퍼 근처)는 루프 감지 제외
+const KICK_FREE = 10;       // 플리퍼 없이 이 횟수까지는 튕김 힘 100%
+const KICK_DECAY = 0.8;     // 그 뒤 한 번마다 힘 ×0.8
+const LANE_STUCK = 2.5;     // 발사 레인에 이 시간(초) 넘게 있으면 발사대로 되돌림
 const DIRECT = new Set(['bumper', 'lane', 'target', 'body', 'bank', 'chain']);
 const rng = Math.random;
 
@@ -66,7 +73,7 @@ function startStage(n) {
 }
 
 function makeBall(x, y, vx = 0, vy = 0, inLane = false) {
-  return { x, y, vx, vy, r: inLane ? C.BALL_R : G.stats.ballR, alive: true, inLane, rest: false, slowT: 0, wallT: 0 };
+  return { x, y, vx, vy, r: inLane ? C.BALL_R : G.stats.ballR, alive: true, inLane, rest: false, slowT: 0, wallT: 0, kicks: 0, laneT: 0 };
 }
 
 function toLaunch() {
@@ -394,24 +401,30 @@ function flipperUpdate(dt) {
   }
 }
 
+// 무한 튕김 방지: 플리퍼에 닿지 않고 KICK_FREE 회를 넘게 연속으로 튕기면 차내는 힘이 점점 약해진다
+function kickFactor(b) {
+  const n = (b.kicks || 0) - KICK_FREE;
+  return n <= 0 ? 1 : Math.max(0, Math.pow(KICK_DECAY, n));
+}
+
 function collideBall(b) {
   const S = G.stats, e = G.enemy;
   // 벽
   for (const w of board.walls) {
     if (w.gate && b.inLane) continue;
-    const c = hitCapsule(b, w.x1, w.y1, w.x2, w.y2, w.r, { bounce: C.WALL_BOUNCE });
+    const c = hitCapsule(b, w.x1, w.y1, w.x2, w.y2, w.r, { bounce: C.WALL_BOUNCE, jitter: w.map ? JITTER : 0 });
     if (c && c.vn < -250 && G.time - b.wallT > 0.08) { b.wallT = G.time; emitBump(b.x, b.y, 'wall', -c.vn / 1500); }
   }
   if (b.inLane) return;
   // 슬링샷
   for (const s of board.slings) {
-    const c = hitCapsule(b, s.x1, s.y1, s.x2, s.y2, s.r, { bounce: 0.5, kick: C.SLING_KICK * S.kickMul });
-    if (c) { s.flash = 1; emitBump(b.x, b.y, 'sling', 0.8); }
+    const c = hitCapsule(b, s.x1, s.y1, s.x2, s.y2, s.r, { bounce: 0.5, kick: C.SLING_KICK * S.kickMul * kickFactor(b), jitter: JITTER });
+    if (c) { b.kicks++; s.flash = 1; emitBump(b.x, b.y, 'sling', 0.8); }
   }
   // 범퍼
   for (const p of board.bumpers) {
-    const c = hitCircle(b, p.x, p.y, p.r, { bounce: 0.6, kick: C.BUMPER_KICK * S.kickMul });
-    if (c) { p.flash = 1; emitBump(p.x, p.y, 'bumper', 1); hit('bumper', p, p.x, p.y); if (G.phase !== 'play') return; }
+    const c = hitCircle(b, p.x, p.y, p.r, { bounce: 0.6, kick: C.BUMPER_KICK * S.kickMul * kickFactor(b), jitter: JITTER });
+    if (c) { b.kicks++; p.flash = 1; emitBump(p.x, p.y, 'bumper', 1); hit('bumper', p, p.x, p.y); if (G.phase !== 'play') return; }
   }
   // 드롭 타깃
   for (const t of board.targets) {
@@ -431,11 +444,11 @@ function collideBall(b) {
   }
   // 적 몸체
   if (e && e.hp > 0) {
-    const c = hitCircle(b, e.x, e.y, e.r, { bounce: 0.6, kick: 260, vx: e.vx, vy: e.vy, maxV: C.ENTITY_MAX_V });
-    if (c) { emitBump(b.x, b.y, 'wall', 0.6); hit('body', e, b.x - c.nx * b.r, b.y - c.ny * b.r); if (G.phase !== 'play') return; }
+    const c = hitCircle(b, e.x, e.y, e.r, { bounce: 0.6, kick: 260 * kickFactor(b), vx: e.vx, vy: e.vy, maxV: C.ENTITY_MAX_V, jitter: JITTER });
+    if (c) { b.kicks++; emitBump(b.x, b.y, 'wall', 0.6); hit('body', e, b.x - c.nx * b.r, b.y - c.ny * b.r); if (G.phase !== 'play') return; }
     for (const g of e.guards.slice()) {
-      const c2 = hitCircle(b, g.x, g.y, g.r, { bounce: 0.6, kick: 220, vx: g.vx, vy: g.vy, maxV: C.ENTITY_MAX_V });
-      if (c2) hitGuard(g);
+      const c2 = hitCircle(b, g.x, g.y, g.r, { bounce: 0.6, kick: 220 * kickFactor(b), vx: g.vx, vy: g.vy, maxV: C.ENTITY_MAX_V, jitter: JITTER });
+      if (c2) { b.kicks++; hitGuard(g); }
     }
   }
   // 플리퍼
@@ -443,6 +456,7 @@ function collideBall(b) {
     const f = G.flippers[k], bf = board.flippers[k];
     const tx = bf.px + Math.cos(f.angle) * bf.len, ty = bf.py + Math.sin(f.angle) * bf.len;
     const c = hitCapsule(b, bf.px, bf.py, tx, ty, bf.r, { bounce: 0.3, omega: f.av, px: bf.px, py: bf.py });
+    if (c) b.kicks = 0;          // 플리퍼에 닿으면 튕김 힘 원상 복구
     if (c && Math.abs(f.av) > 1 && c.vn < -100) emitBump(b.x, b.y, 'flipper', Math.abs(f.av) / C.FLIPPER_SPEED);
   }
   // 레인 (통과형)
@@ -475,6 +489,8 @@ function physicsStep(dt) {
     collideBall(b);
     if (G.phase !== 'play') return;
     if (b.inLane) {
+      b.laneT = (b.laneT || 0) + dt;
+      if (b.x >= 328 && b.laneT > LANE_STUCK && G.balls.length === 1) { toLaunch(); return; }   // 레인에 갇힘 → 다시 발사대로(공 잃지 않음)
       if (b.x < 328) { b.inLane = false; b.r = S.ballR; }
       else if (b.y > board.plunger.y && b.vy > 0) {   // 레인으로 떨어져 돌아온 공 → 자동 재발사
         b.y = board.plunger.y; b.vx = 0; b.vy = -C.LAUNCH_MAX * 0.9;
@@ -547,6 +563,20 @@ function update(dt) {
   // 끼임 방지
   for (const b of G.balls) {
     if (b.rest) continue;
+    // 무한 튕김 방지: 빠르게 튕기더라도 좁은 구역(반경 LOOP_R)에 LOOP_TIME 이상 머물면 옆으로 빼낸다
+    if (!b.inLane) {
+      if (b.loopT === undefined || Math.hypot(b.x - b.loopX, b.y - b.loopY) > LOOP_R) {
+        b.loopX = b.x; b.loopY = b.y; b.loopT = 0;
+      } else if (b.y < LOOP_SAFE_Y) {          // 플리퍼 위에 공을 잡아 둔 경우는 제외
+        b.loopT += dt;
+        if (b.loopT > LOOP_TIME) {
+          const dir = b.x < C.W / 2 - 20 ? 1 : -1;   // 판 가운데 쪽으로
+          b.vx = dir * (220 + rng() * 120);
+          b.vy = 120 + rng() * 80;                   // 아래로 빠지게
+          b.loopT = 0; b.loopX = b.x; b.loopY = b.y;
+        }
+      } else b.loopT = 0;
+    }
     if (Math.hypot(b.vx, b.vy) < 30) {
       b.slowT += dt;
       if (b.slowT > C.STUCK_TIME) {
