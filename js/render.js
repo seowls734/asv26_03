@@ -54,7 +54,8 @@ export function initRender(cv) {
   bus.on('enemyDefeated', (d) => {
     banners.push({ x: W / 2, y: 300, text: d && d.boss ? '보스 격파!' : '격파!', c: '#ffe45c', s: 30, life: 1.4, max: 1.4 });
   });
-  bus.on('ballLost', () => {
+  bus.on('ballLost', (d) => {
+    if (d && (d.saved || d.left < 0)) return;          // SAVE 는 G.saveFlash 로 표시, 게임오버는 UI 화면
     banners.push({ x: W / 2, y: 520, text: '공 소실', c: '#ff7070', s: 18, life: 1.0, max: 1.0 });
   });
 }
@@ -111,9 +112,9 @@ function drawBoard(G, b, world) {
     const L = b.lane, x1 = num(L.x1, 348), x2 = num(L.x2, 372), y1 = num(L.y1, 60), y2 = num(L.y2, 650);
     ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
     const ch = num(G.plunger && G.plunger.charge);
-    const py = y2 - 22 + ch * 18;
+    const py = (b.plunger ? num(b.plunger.y, y2 - 13) + 11 : y2 - 22) + ch * 18;
     ctx.fillStyle = '#c8ccd2'; ctx.fillRect(x1 + 3, py, x2 - x1 - 6, 6);
-    ctx.fillStyle = '#6b7178'; ctx.fillRect(x1 + (x2 - x1) / 2 - 2, py + 6, 4, Math.max(0, y2 - py - 6));
+    ctx.fillStyle = '#6b7178'; ctx.fillRect(x1 + (x2 - x1) / 2 - 2, py + 6, 4, Math.max(0, y2 + 30 - py - 6));
     if (G.phase === 'launch' || ch > 0) {   // 충전 게이지
       const gh = 110, gx = x1 - 10, gy = y2 - gh - 10;
       ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(gx, gy, 6, gh);
@@ -132,7 +133,10 @@ function drawBoard(G, b, world) {
     ctx.moveTo(cx - 5, cy + 3); ctx.lineTo(cx, cy - 3); ctx.lineTo(cx + 5, cy + 3); ctx.stroke();
   }
   // 벽
-  for (const w of arr(b.walls)) capsule(w.x1, w.y1, w.x2, w.y2, num(w.r, 4), line);
+  for (const w of arr(b.walls)) {
+    if (w.gate) { ctx.setLineDash([4, 4]); capsule(w.x1, w.y1, w.x2, w.y2, 1.5, hexA(line, 0.5)); ctx.setLineDash([]); ctx.lineCap = 'round'; }
+    else capsule(w.x1, w.y1, w.x2, w.y2, num(w.r, 4), w.map ? hexA(line, 0.75) : line);
+  }
   // 슬링샷
   for (const s of arr(b.slings)) {
     const f = num(s.flash);
@@ -141,7 +145,7 @@ function drawBoard(G, b, world) {
   // 드롭 타깃
   for (const t of arr(b.targets)) {
     if (t.down) capsule(t.x1, t.y1, t.x2, t.y2, 1.5, hexA(line, 0.35));
-    else capsule(t.x1, t.y1, t.x2, t.y2, num(t.r, 5), '#ffd84a');
+    else capsule(t.x1, t.y1, t.x2, t.y2, num(t.r, 5), num(t.flash) > 0.05 ? '#ffffff' : '#ffd84a');
   }
   // 범퍼
   for (const bp of arr(b.bumpers)) {
@@ -155,6 +159,7 @@ function flipperTip(side, fb, gf) {
   if (fb && typeof fb.x2 === 'number') return [fb.x2, fb.y2];
   const len = num(fb.len, 62);
   let a = gf && typeof gf.angle === 'number' ? gf.angle : null;
+  if (a == null && typeof fb.rest === 'number') a = fb.rest;
   if (a == null) { const rest = (30 * Math.PI) / 180; a = side === 'L' ? rest : Math.PI - rest; }
   return [fb.px + Math.cos(a) * len, fb.py + Math.sin(a) * len];
 }
@@ -390,4 +395,5 @@ export function drawFrame(G, board, dt) {
   for (const b of arr(G.balls)) if (b && b.alive !== false && typeof b.x === 'number') drawBall(b, G.material);
   drawFlippers(G, board);
   drawFloats(dt);
+  if (num(G.saveFlash) > 0 && Math.floor(num(G.saveFlash) * 6) % 2 === 0) text('SAVE', W / 2, 470, 30, '#7be08a');
 }

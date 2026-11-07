@@ -9,7 +9,7 @@
 </head>
 <body>
 <div id="app">
-  <header id="hud">
+  <header id="hud" data-ui>
     <div class="hrow">
       <span id="hStage" class="hstage">1/25</span>
       <span id="hWorld" class="hworld">초록 이끼숲</span>
@@ -36,7 +36,7 @@
   </main>
 
   <!-- 타이틀 -->
-  <section id="scrTitle" class="screen">
+  <section id="scrTitle" class="screen ui-block" data-ui>
     <div class="panel">
       <h1 class="logo">바운스<br>브레이커</h1>
       <p class="sub">공을 튕겨 적을 부수는 핀볼 로그라이트</p>
@@ -47,7 +47,7 @@
   </section>
 
   <!-- 카드 선택 -->
-  <section id="scrCards" class="screen hidden">
+  <section id="scrCards" class="screen hidden ui-block" data-ui>
     <div class="panel wide">
       <h2>카드를 고르세요</h2>
       <div id="nextEnemy" class="next"></div>
@@ -56,16 +56,17 @@
   </section>
 
   <!-- 일시정지 -->
-  <section id="scrPause" class="screen hidden">
+  <section id="scrPause" class="screen hidden ui-block" data-ui>
     <div class="panel">
       <h2>일시정지</h2>
       <button id="btnResume" class="btn primary">계속</button>
+      <button id="btnMute" class="btn">소리 끄기</button>
       <button id="btnPauseTitle" class="btn">처음으로</button>
     </div>
   </section>
 
   <!-- 게임오버 / 승리 -->
-  <section id="scrEnd" class="screen hidden">
+  <section id="scrEnd" class="screen hidden ui-block" data-ui>
     <div class="panel">
       <h2 id="endTitle">게임 오버</h2>
       <p id="endInfo" class="endinfo"></p>

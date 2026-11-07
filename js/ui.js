@@ -55,9 +55,10 @@ const call = (name, ...a) => () => { if (typeof api[name] === 'function') api[na
 function openCards(cards) {
   const list = Array.isArray(cards) ? cards : [];
   shownCards = list;
-  const G = lastG || {};
+  const G = (typeof api.getG === 'function' && api.getG()) || lastG || {};
+  if (!el.cardList || !el.scrCards) return;
   const next = ENEMIES[G.stage] || null;              // cards 중 G.stage = 방금 이긴 스테이지
-  el.nextEnemy.innerHTML = next ? `<div class="row" style="margin:0 0 2px">다음 적 (스테이지 ${G.stage + 1})</div>${enemyInfoHtml(next)}` : '';
+  if (el.nextEnemy) el.nextEnemy.innerHTML = next ? `<div class="row" style="margin:0 0 2px">다음 적 (스테이지 ${G.stage + 1})</div>${enemyInfoHtml(next)}` : '';
   show(el.nextEnemy, !!next);
   el.cardList.innerHTML = list.map((c, i) => {
     const d = (DEF[c.kind] || {})[c.id] || { name: c.id, desc: '' };
@@ -78,13 +79,13 @@ function openCards(cards) {
   }));
   show(el.scrCards, true);
 }
-function closeCards() { shownCards = null; show(el.scrCards, false); }
+function closeCards() { shownCards = null; if (el.scrCards) show(el.scrCards, false); }
 
 export function initUI(a) {
   api = a || {};
   const ids = ['hud', 'hStage', 'hWorld', 'hBalls', 'hScore', 'hMat', 'hTraits', 'hEnemy', 'hWeak', 'hResist', 'hAbil',
     'btnPause', 'hint', 'scrTitle', 'btnStart', 'titleBest', 'scrCards', 'nextEnemy', 'cardList',
-    'scrPause', 'btnResume', 'btnPauseTitle', 'scrEnd', 'endTitle', 'endInfo', 'btnRestart', 'btnEndTitle'];
+    'scrPause', 'btnResume', 'btnMute', 'btnPauseTitle', 'scrEnd', 'endTitle', 'endInfo', 'btnRestart', 'btnEndTitle'];
   el = {};
   for (const id of ids) el[id] = $(id);
 
@@ -92,6 +93,7 @@ export function initUI(a) {
   guard(el.btnStart, call('start'));
   guard(el.btnResume, call('resume'));
   guard(el.btnPauseTitle, call('toTitle'));
+  guard(el.btnMute, () => { const G = lastG || {}; if (typeof api.setMuted === 'function') api.setMuted(!G.muted); });
   guard(el.btnRestart, call('restart'));
   guard(el.btnEndTitle, call('toTitle'));
   // 오버레이 화면 전체가 플리퍼 입력을 먹지 않게
@@ -124,6 +126,7 @@ export function updateUI(G) {
   if (ph === 'cards' && !shownCards) openCards(G.cards);
   if (ph !== 'cards' && shownCards) closeCards();
 
+  if (ph === 'paused') put(el.btnMute, 'm' + !!G.muted, G.muted ? '소리 켜기' : '소리 끄기');
   if (ph === 'title') put(el.titleBest, 'b' + JSON.stringify(G.best), esc(bestText(G)));
   if (ph === 'gameover' || ph === 'victory') {
     const k = `${ph}|${G.stage}|${G.score}|${JSON.stringify(G.best)}`;
