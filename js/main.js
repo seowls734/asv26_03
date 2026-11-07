@@ -1,7 +1,7 @@
 // 바운스 브레이커 — 게임 상태·루프·입력·데미지·적 능력 (개발자 소유, docs/구조.md · 기획서 8장)
 import { CONST as C, DAMAGE, STATUS, MATERIALS, ABIL_LABEL, makeEnemy, rollCards, worldOf, calcStats } from './data.js';
 import { bus, store } from './events.js';
-import { buildBoard } from './board.js';
+import { buildBoard, fitEnemy } from './board.js';
 import { hitCapsule, hitCircle, clampSpeed, inRect } from './physics.js';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -41,7 +41,7 @@ function newRun() {
   G = {
     phase: prevPhase, stage: 1, world: 0, score: 0, best: best.score, bestStage: best.stage, time: 0,
     ballsLeft: C.BALLS_PER_RUN,
-    material: 'normal', traits: [], upgrades: {},
+    material: 'normal', materials: [], traits: [], upgrades: {},   // materials: 고른 재질 전부 — 새 공마다 무작위
     enemy: null, balls: [],
     plunger: { charge: 0, holding: false },
     flippers: { L: { angle: 0, up: false, av: 0 }, R: { angle: 0, up: false, av: 0 } },
@@ -63,8 +63,8 @@ function setPhase(p) {
 function startStage(n) {
   G.stage = n;
   G.world = worldOf(n);
-  G.enemy = makeEnemy(n);
-  board = buildBoard(G.enemy);
+  G.enemy = fitEnemy(makeEnemy(n), G.world);
+  board = buildBoard(G.enemy, G.world);
   if (DEBUG) window.__bb.board = board;
   G.chainCount = 0; G.multiT = 0; G.cards = [];
   G.flippers.L.angle = board.flippers.L.rest; G.flippers.R.angle = board.flippers.R.rest;
@@ -77,6 +77,12 @@ function makeBall(x, y, vx = 0, vy = 0, inLane = false) {
 }
 
 function toLaunch() {
+  // 새 공: 보유한 재질 중 하나를 무작위로
+  if (G.materials && G.materials.length) {
+    const prev = G.material;
+    G.material = G.materials[Math.floor(rng() * G.materials.length)];
+    if (G.material !== prev) G.stats = calcStats(G);
+  }
   const b = makeBall(board.plunger.x, board.plunger.y, 0, 0, true);
   b.rest = true;
   G.balls = [b];
@@ -236,7 +242,10 @@ function chooseCard(i) {
   if (G.phase !== 'cards') return;
   const card = G.cards[i];
   if (!card) return;
-  if (card.kind === 'material') G.material = card.id;
+  if (card.kind === 'material') {
+    if (!G.materials.includes(card.id)) G.materials.push(card.id);
+    G.material = card.id;
+  }
   else if (card.kind === 'trait') { if (!G.traits.includes(card.id) && G.traits.length < 4) G.traits.push(card.id); }
   else if (card.kind === 'upgrade') {
     G.upgrades[card.id] = (G.upgrades[card.id] || 0) + 1;

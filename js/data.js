@@ -28,7 +28,7 @@ export const CONST = {
   ENTRY_ZONE: [270, 20, 345, 95],   // 발사 레인 → 필드 진입 구역, 물체 금지
   DEFAULT_E: [187, 140, 26],
   // 적 HP 공식: round(HP_BASE * HP_GROWTH^(stage-1) * (boss ? BOSS_HP_MUL : 1))
-  HP_BASE: 60, HP_GROWTH: 1.12, BOSS_HP_MUL: 2.3,
+  HP_BASE: 60, HP_GROWTH: 1.17, BOSS_HP_MUL: 2.3,
   // 점수
   SCORE_PER_DMG: 1, SCORE_STAGE: 100, SCORE_BOSS: 500,
 };
@@ -426,7 +426,7 @@ export function rollCards(G, rng = Math.random) {
   const n = traits.includes('lucky') ? TRAITS.lucky.cards : CARD_RULES.count;
   const next = ENEMIES[G.stage] || null;              // G.stage = 방금 이긴 스테이지 → 다음 적
   const pools = {
-    material: Object.keys(MATERIALS).filter((id) => id !== 'normal' && id !== G.material),
+    material: Object.keys(MATERIALS).filter((id) => id !== 'normal' && id !== G.material && !(G.materials || []).includes(id)),
     trait: traits.length >= 4 ? [] : Object.keys(TRAITS).filter((id) => !traits.includes(id)),
     upgrade: Object.keys(UPGRADES).filter((id) => (ups[id] || 0) < UPGRADES[id].max &&
       !(id === 'extraBall' && (G.ballsLeft || 0) >= CONST.MAX_BALLS)),

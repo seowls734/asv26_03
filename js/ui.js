@@ -141,7 +141,10 @@ export function updateUI(G) {
   put(el.hWorld, 'w' + G.world, esc(w.name));
   put(el.hBalls, 'b' + G.ballsLeft, String(G.ballsLeft ?? 0));
   put(el.hScore, 'c' + G.score, (G.score || 0).toLocaleString());
-  put(el.hMat, 'm' + G.material, `${sw(G.material || 'normal')}${esc(matName(G.material || 'normal'))}`);
+  const owned = (G.materials || []).filter((id) => id !== G.material);
+  put(el.hMat, 'm' + G.material + '|' + (G.materials || []).join(','),
+    `${sw(G.material || 'normal')}${esc(matName(G.material || 'normal'))}` +
+    (owned.length ? ` <span style="opacity:.75;font-size:12px">+ ${owned.map((id) => sw(id)).join('')}</span>` : ''));
   const tr = G.traits || [];
   put(el.hTraits, 't' + tr.join(','), [0, 1, 2, 3].map((i) => {
     const t = TRAITS[tr[i]];
