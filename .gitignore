@@ -1,0 +1,4 @@
+/asv26_03/
+__pycache__/
+*.log
+.claude/settings.local.json
