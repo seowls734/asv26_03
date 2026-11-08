@@ -21,7 +21,8 @@ export const CONST = {
   ENTITY_MAX_V: 300,          // 움직이는 적·호위병 순간 속도 상한
   STUCK_TIME: 4,              // 공이 이 시간 동안 거의 안 움직이면 살짝 밀어줌
   CRIT_CAP: 0.6,              // 치명 확률 상한
-  MULTI_MAX: 3,               // 판 위 공 최대 수 (분신)
+  MULTI_MAX: 3,               // 판 위 공 최대 수 (쌍둥이 공)
+  DIE_TIME: 1.7, DIE_TIME_BOSS: 3.0,   // 적이 쓰러지는 연출 시간(초) → 그 뒤 카드 화면
   // 맵 검사 규칙 (tools/check_maps.py 가 이 값을 읽음)
   MAP_GAP: 30,
   MAP_BOX: [42, 60, 315, 450],      // 물체 외곽이 들어가야 하는 범위 (외벽 x12/x345 와 30px 간격 포함)

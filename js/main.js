@@ -248,11 +248,20 @@ function hitGuard(g) {
 
 function defeat() {
   const e = G.enemy;
-  bus.emit('enemyDefeated', { stage: G.stage, boss: e.boss });
-  G.score += C.SCORE_STAGE * G.stage + (e.boss ? C.SCORE_BOSS : 0);
+  const bonus = C.SCORE_STAGE * G.stage + (e.boss ? C.SCORE_BOSS : 0);
+  bus.emit('enemyDefeated', { stage: G.stage, boss: e.boss, bonus, x: e.x, y: e.y, balls: G.balls.map((b) => ({ x: b.x, y: b.y })) });
+  G.score += bonus;
   if (e.boss) G.ballsLeft = Math.min(C.MAX_BALLS, G.ballsLeft + C.BOSS_BALL);
   G.balls = [];
+  G.blastQ = [];
   for (const k of ['L', 'R']) G.flippers[k].up = false;
+  // 바로 카드로 가지 않고 쓰러지는 연출 (render.js 가 G.dieT 로 그림) → afterDefeat
+  G.dieT = 0; G.dieDur = e.boss ? C.DIE_TIME_BOSS : C.DIE_TIME;
+  saveBest();
+  setPhase('dying');
+}
+
+function afterDefeat() {
   if (G.stage >= C.STAGES) {
     saveBest();
     setPhase('victory');
@@ -654,6 +663,11 @@ function lastBallLost() {
 let acc = 0;
 function update(dt) {
   if (!G) return;
+  if (G.phase === 'dying') {          // 적 쓰러지는 연출
+    G.time += dt; G.dieT += dt;
+    if (G.dieT >= G.dieDur) afterDefeat();
+    return;
+  }
   if (G.phase !== 'launch' && G.phase !== 'play') return;
   G.time += dt;
   readInput();

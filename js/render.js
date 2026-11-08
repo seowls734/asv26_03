@@ -54,6 +54,9 @@ const parts = [];    // 도트 파편 { x, y, vx, vy, c, life }
 const texts = [];    // 이번 프레임에 덧그릴 글자·배지
 const trails = new WeakMap();
 const rings = [];    // 폭발 고리 { x, y, r, life, max }
+let death = null;    // 적 쓰러지는 연출 상태
+let shake = 0;       // 화면 흔들림 (판 px)
+let flash = 0;       // 화면 번쩍임 (0~1)
 
 function addFloat(f) { floats.push(f); if (floats.length > 50) floats.shift(); }
 function addParts(x, y, n, c, spd = 160) {
@@ -86,7 +89,9 @@ export function initRender(cv) {
     banners.push({ x: d.x ?? W / 2, y: (d.y ?? 140) - 50, text: d.label || d.t || '', c: '#ff9f5a', s: 18, life: 1.3, max: 1.3 });
   });
   bus.on('enemyDefeated', (d) => {
-    banners.push({ x: W / 2, y: 300, text: d && d.boss ? '보스 격파!' : '격파!', c: '#ffe45c', s: 30, life: 1.4, max: 1.4 });
+    death = { boss: !!(d && d.boss), bonus: (d && d.bonus) || 0, burst: false, pops: 0 };
+    banners.length = 0;                                  // 판 안내 등 남은 글자 지움
+    for (const b of (d && d.balls) || []) addParts(b.x, b.y, 6, '#ffffff', 120);   // 공은 반짝이며 사라짐
   });
   bus.on('ballLost', (d) => {
     if (d && (d.saved || d.left < 0)) return;          // SAVE 는 G.saveFlash 로 표시, 게임오버는 UI 화면
@@ -528,8 +533,52 @@ function drawShape(e, t, lookAt) {
   }
 }
 
+// 적이 쓰러지는 연출: 떨림·하얀 깜빡임·부풀기 → 펑 (보스는 작은 폭발 여러 번 뒤 큰 폭발)
+function drawDying(G, t) {
+  const e = G.enemy; if (!e || !death) return;
+  const d = num(G.dieT), D = num(G.dieDur, 1.7), r = num(e.r, 26);
+  const burstAt = death.boss ? 1.5 : 0.55;
+  const col = e.color || '#aaaaaa';
+  if (d < burstAt) {
+    const k = d / burstAt;
+    const amp = (death.boss ? 4 : 2.5) * (0.4 + k);
+    const ox = Math.sin(d * 70) * amp, oy = Math.cos(d * 53) * amp * 0.6;
+    const white = Math.floor(d * 14) % 2 === 0;
+    drawShape({ ...e, x: e.x + ox, y: e.y + oy, r: r * (1 + 0.25 * k), color: white ? '#ffffff' : col, boss: e.boss }, t, null);
+    shake = Math.max(shake, death.boss ? 2 + 3 * k : 1.5);
+    if (death.boss) {                       // 몸 곳곳에서 작은 폭발
+      const n = Math.floor(d / 0.16);
+      while (death.pops < n) {
+        death.pops++;
+        const a = Math.random() * TAU, rr = r * (0.3 + Math.random() * 0.8);
+        const px = e.x + Math.cos(a) * rr, py = e.y + Math.sin(a) * rr;
+        rings.push({ x: px, y: py, r: 22, life: 0.3, max: 0.3 });
+        addParts(px, py, 6, Math.random() < 0.5 ? '#ffb030' : '#ffffff', 180);
+      }
+    }
+    return;
+  }
+  if (!death.burst) {                       // 펑!
+    death.burst = true;
+    flash = 1; shake = death.boss ? 10 : 6;
+    rings.push({ x: e.x, y: e.y, r: r * 3.2, life: 0.6, max: 0.6 });
+    rings.push({ x: e.x, y: e.y, r: r * 1.8, life: 0.4, max: 0.4 });
+    addParts(e.x, e.y, death.boss ? 70 : 40, col, death.boss ? 340 : 260);
+    addParts(e.x, e.y, 20, mix(col, '#000000', 0.5), 220);
+    addParts(e.x, e.y, 16, '#ffffff', 300);
+    if (e.boss) addParts(e.x, e.y - r, 14, '#ffcf3a', 240);
+    banners.push({ x: W / 2, y: 300, text: death.boss ? '보스 격파!' : '격파!', c: '#ffe45c', s: death.boss ? 34 : 30, life: D - burstAt + 0.3, max: D - burstAt + 0.3 });
+    banners.push({ x: W / 2, y: 336, text: `+${death.bonus.toLocaleString()}점`, c: '#9dffa8', s: 16, life: D - burstAt + 0.3, max: D - burstAt + 0.3 });
+    if (death.boss) banners.push({ x: W / 2, y: 360, text: '공 +1', c: '#ffffff', s: 14, life: D - burstAt + 0.3, max: D - burstAt + 0.3 });
+  }
+  // 터진 자리: 연기 고리가 사라져 감
+  const k = Math.min(1, (d - burstAt) / Math.max(0.1, D - burstAt));
+  circle(e.x, e.y, r * (1.2 + k), null, hexA(col, 0.5 * (1 - k)), 3);
+}
+
 function drawEnemy(G, t) {
   const e = G.enemy; if (!e || typeof e.x !== 'number') return;
+  if (G.phase === 'dying') { drawDying(G, t); return; }
   const st = e.status || {}, r = num(e.r, 26);
   const ball = arr(G.balls).find((b) => b && b.alive !== false);
 
@@ -755,7 +804,7 @@ export function drawFrame(G, board, dt) {
   if (board !== lastBoard) {
     lastBoard = board;
     stat = { key: '', canvas: null };
-    if (G.phase !== 'title' && board.gimmickName) {
+    if (G.phase !== 'title' && G.phase !== 'dying' && board.gimmickName) {
       const gm = GIMMICKS[board.gimmick];
       banners.push({ x: W / 2, y: 292, text: board.frameName || '', c: world.line, s: 16, life: 2.4, max: 2.4 });
       banners.push({ x: W / 2, y: 316, text: `장애물: ${board.gimmickName}`, c: curSkin.mark, s: 14, life: 2.4, max: 2.4 });
@@ -775,6 +824,10 @@ export function drawFrame(G, board, dt) {
   drawFlippers(G, board);
   drawRings(dt);
   drawParts(dt);
+  if (flash > 0) {                         // 번쩍임 (디더링으로 점점 옅어짐)
+    ctx.fillStyle = `rgba(255,255,255,${0.75 * flash})`; ctx.fillRect(0, 0, W, H);
+    flash = Math.max(0, flash - dt * 3.5);
+  }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   crisp(ctx, BW, BH);
 
@@ -782,7 +835,12 @@ export function drawFrame(G, board, dt) {
   const v = view, dpr = num(v.dpr, 1), dev = num(v.scale, 1) * dpr;      // 판 1px 당 기기 픽셀
   const k = Math.max(1, Math.floor(PX * dev + 0.08));                    // 도트 1칸 = 기기 픽셀 k개 (정수)
   const s = k / PX;                                                       // 실제 판 1px 당 기기 픽셀
-  const ox = Math.round(num(v.offX) * dpr + (W * dev - W * s) / 2), oy = Math.round(num(v.offY) * dpr + (H * dev - H * s) / 2);
+  let ox = Math.round(num(v.offX) * dpr + (W * dev - W * s) / 2), oy = Math.round(num(v.offY) * dpr + (H * dev - H * s) / 2);
+  if (shake > 0.2) {                       // 화면 흔들림 (도트 칸 단위)
+    ox += Math.round((Math.random() * 2 - 1) * shake / PX) * k;
+    oy += Math.round((Math.random() * 2 - 1) * shake / PX) * k;
+  }
+  shake = Math.max(0, shake - dt * 18);
   out.setTransform(1, 0, 0, 1, 0, 0);
   out.imageSmoothingEnabled = false;
   out.fillStyle = world.bg[1]; out.fillRect(0, 0, canvas.width, canvas.height);
