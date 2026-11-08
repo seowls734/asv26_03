@@ -53,6 +53,7 @@ const banners = [];  // 능력 이름 등 큰 글자
 const parts = [];    // 도트 파편 { x, y, vx, vy, c, life }
 const texts = [];    // 이번 프레임에 덧그릴 글자·배지
 const trails = new WeakMap();
+const rings = [];    // 폭발 고리 { x, y, r, life, max }
 
 function addFloat(f) { floats.push(f); if (floats.length > 50) floats.shift(); }
 function addParts(x, y, n, c, spd = 160) {
@@ -103,6 +104,12 @@ export function initRender(cv) {
     banners.push({ x: W / 2, y: 276, text: t.star, c: '#fff3b0', s: 12, life: 2.6, max: 2.6 });
     for (let i = 0; i < 4; i++) addParts(W / 2 - 90 + i * 60, 260, 6, i % 2 ? '#ffd84a' : '#ffffff', 200);
   });
+  bus.on('blast', (d) => {
+    if (!d) return;
+    rings.push({ x: d.x, y: d.y, r: d.r || 70, life: 0.45, max: 0.45 });
+    addParts(d.x, d.y, 14, '#ffb030', 260); addParts(d.x, d.y, 8, '#ff4a2a', 200); addParts(d.x, d.y, 4, '#ffffff', 160);
+  });
+  bus.on('cellPop', (d) => { if (d) addParts(d.x, d.y, 8, '#9dffa8', 150); });
   bus.on('crumble', (d) => {
     if (!d) return;
     const sk = curSkin;
@@ -633,10 +640,37 @@ function drawBall(b, mat, G) {
     default: // shine
       sq(x - r * 0.35, y - r * 0.38, 4, '#ffffff');
   }
+  const S = (G && G.stats) || {};
+  if (S.blast && num(b.blastT) >= S.blast.every && Math.floor(num(G.time) * 8) % 2) {   // 폭발 준비됨
+    circle(x, y, r + 3, null, '#ffb030', 2);
+  }
+  if (S.cell) {
+    if (b.small) {                             // 남은 접촉 수 + 성장 진행
+      const left = Math.max(0, S.cell.touches - num(b.touch));
+      for (let i = 0; i < left; i++) sq(x - (left - 1) * 3 + i * 6, y - r - 6, 4, '#9dffa8');
+      if (num(b.gen) < S.cell.maxGrow) {
+        ctx.strokeStyle = hexA('#9dffa8', 0.7); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, num(b.growT) / S.cell.grow)); ctx.stroke();
+      }
+    } else if (typeof b.cellHp === 'number' && num(b.gen) < S.cell.maxGrow) {   // 세포 체력 바
+      const p = Math.max(0, Math.min(1, b.cellHp)), w = 20;
+      rect(x - w / 2 - 2, y - r - 10, w + 4, 6, '#000000');
+      rect(x - w / 2, y - r - 8, Math.max(2, w * p), 2, p > 0.5 ? '#7be08a' : p > 0.25 ? '#ffd84a' : '#ff4a4a');
+    }
+  }
   const rb = num(b.rb);                       // 무지개 충전 칸
   for (let i = 0; i < rb; i++) {
     const a = num(G && G.time) * 3 + (i / Math.max(1, rb)) * TAU;
     sq(x + Math.cos(a) * (r + 6), y + Math.sin(a) * (r + 6), 4, RAINBOW[i % RAINBOW.length]);
+  }
+}
+
+function drawRings(dt) {
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const q = rings[i]; q.life -= dt;
+    if (q.life <= 0) { rings.splice(i, 1); continue; }
+    const k = 1 - q.life / q.max;
+    circle(q.x, q.y, q.r * (0.3 + 0.7 * k), hexA('#ff9a30', 0.35 * (1 - k)), k < 0.5 ? '#ffffff' : '#ffb030', 4 * (1 - k) + 1);
   }
 }
 
@@ -739,6 +773,7 @@ export function drawFrame(G, board, dt) {
   drawEnemy(G, t);
   for (const b of arr(G.balls)) if (b && b.alive !== false && typeof b.x === 'number') drawBall(b, G.material, G);
   drawFlippers(G, board);
+  drawRings(dt);
   drawParts(dt);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   crisp(ctx, BW, BH);

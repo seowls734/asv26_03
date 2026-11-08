@@ -37,6 +37,7 @@ export const CONST = {
 export const DAMAGE = {
   bumper: 4, lane: 3, target: 8, body: 12,
   bank: 25,                  // 한 맵의 타깃을 전부 쓰러뜨리면 보너스 데미지 + 즉시 재설치
+  blast: 20,                 // 폭발 특성 1회
   guard: 0,                  // 호위병을 맞히면 적 데미지 없음 (호위병 체력만 -1)
   weakMul: 1.8, resistMul: 0.5,
   critChance: 0.05, critMul: 1.8,
@@ -77,6 +78,7 @@ export const MATERIALS = {   // 8종
 };
 
 // ───────────────────────── 5. 특성 (최대 4종, 같은 특성 3번 = 각성) ─────────────────────────
+// 모든 특성은 '공'에만 붙는다 (플리퍼·카드 등에는 영향 없음).
 // lv[0] = 기본 (1~2번째 고름), lv[1] = 각성 ★ (3번째 고름). desc / star = 카드 설명.
 export const TRAIT_AWAKEN = 3;
 export const TRAITS = {
@@ -92,10 +94,6 @@ export const TRAITS = {
               desc:'플리퍼에 닿기 전까지 연속으로 맞힐 때마다 피해 +5% (최대 +50%).',
               star:'한 번에 +10% (최대 +100%).',
               lv:[{ step:0.05, max:0.5 }, { step:0.1, max:1.0 }] },
-  fist:     { id:'fist',     name:'주먹 플리퍼', rarity:'common',
-              desc:'플리퍼로 공을 세게 칠 때마다 적에게 범퍼만큼 피해.',
-              star:'피해 ×2.5, 재질 효과·치명도 붙는다.',
-              lv:[{ mul:1, direct:false }, { mul:2.5, direct:true }] },
   feather:  { id:'feather',  name:'깃털 공',     rarity:'common',
               desc:'공이 올라가는 동안 중력 -30%. 위쪽에 더 오래 머문다.',
               star:'중력 -55%.',
@@ -109,9 +107,9 @@ export const TRAITS = {
               star:'최대 8칸, 터지는 위력 ×1.7.',
               lv:[{ max:5, mul:0.6 }, { max:8, mul:1.0 }] },
   calm:     { id:'calm',     name:'고요한 마음', rarity:'common',
-              desc:'마비 무효, 밀치기·기울임 60% 감소.',
-              star:'밀치기·기울임·적응까지 무효, 적 능력 간격 ×1.4.',
-              lv:[{ force:0.4, cd:1, adapt:false }, { force:0, cd:1.4, adapt:true }] },
+              desc:'적의 밀치기·기울임에 공이 60% 덜 밀린다.',
+              star:'밀치기·기울임 무효, 적의 적응(재질 저항)도 무효.',
+              lv:[{ force:0.4, adapt:false }, { force:0, adapt:true }] },
   piggy:    { id:'piggy',    name:'저금통',      rarity:'rare',
               desc:'공이 빠질 때, 그 공으로 준 피해의 30%를 한 번에 되돌려 준다.',
               star:'60%를 되돌려 준다.',
@@ -124,10 +122,6 @@ export const TRAITS = {
               desc:'적 HP 25% 이하일 때 피해 ×1.5.',
               star:'35% 이하에서 ×1.8, HP 8% 이하로 떨어지면 즉시 처형.',
               lv:[{ below:0.25, mul:1.5, kill:0 }, { below:0.35, mul:1.8, kill:0.08 }] },
-  lucky:    { id:'lucky',    name:'네잎클로버',  rarity:'rare',
-              desc:'카드를 4장 보여줌, 희귀 이상 확률 +5%p.',
-              star:'카드 5장, 희귀 이상 +15%p.',
-              lv:[{ cards:4, rareAdd:0.05 }, { cards:5, rareAdd:0.15 }] },
   giant:    { id:'giant',    name:'거인의 공',   rarity:'rare',
               desc:'공 크기 ×1.4, 몸통·타깃 피해 +30%.',
               star:'공 크기 ×1.7, 몸통·타깃 피해 +70%.',
@@ -136,6 +130,14 @@ export const TRAITS = {
               desc:'발사할 때 30% 확률로 공이 하나 더 같이 나간다.',
               star:'항상 1개 더, 30% 확률로 2개 더 (최대 3개).',
               lv:[{ chance:0.3, extra:0 }, { chance:1, extra:0.3 }] },
+  blast:    { id:'blast',    name:'폭발',        rarity:'rare',
+              desc:'공이 적 주위(60px 안)에 있으면 7.25초마다 한 번 폭발해 큰 피해.',
+              star:'폭발할 때 30% 확률로 연쇄 폭발 (계속 이어질 수 있음).',
+              lv:[{ every:7.25, range:60, chain:0 }, { every:7.25, range:60, chain:0.3 }] },
+  cell:     { id:'cell',     name:'세포',        rarity:'epic',
+              desc:'공의 체력이 시간이 지날수록 닳고(14초), 다 닳으면 작은 공 2개로 분열. 작은 공은 적에게 3번 닿으면 죽고, 12초 동안 적에게 안 닿으면 원래 공으로 성장 (최대 2회).',
+              star:'성장 시간 25% 감소 (12초 → 9초).',
+              lv:[{ life:14, grow:12, touches:3, maxGrow:2, smallR:0.6 }, { life:14, grow:9, touches:3, maxGrow:2, smallR:0.6 }] },
   elemental:{ id:'elemental',name:'원소 증폭',   rarity:'epic',
               desc:'재질 효과 수치 ×1.5.',
               star:'재질 효과 ×2, 약점 배수 1.8 → 2.3.',
@@ -169,7 +171,7 @@ export const UPGRADES = {
 
 // ───────────────────────── 7. 카드 뽑기 규칙 ─────────────────────────
 export const CARD_RULES = {
-  count: 3,                                           // 네잎클로버 특성이면 TRAITS.lucky.lv[].cards
+  count: 3,
   rarity:     { common: 0.62, rare: 0.30, epic: 0.08 },
   bossRarity: { common: 0.30, rare: 0.48, epic: 0.22 },  // 보스 격파 직후
   stageShift: 0.005, stageShiftMax: 0.12,             // 스테이지당 common→rare 이동
@@ -467,9 +469,7 @@ export function rarityTable(G) {
   const R = CARD_RULES;
   const t = { ...((G.enemy && G.enemy.boss) ? R.bossRarity : R.rarity) };
   const shift = Math.min(R.stageShiftMax, R.stageShift * Math.max(0, (G.stage || 1) - 1));
-  const lk = traitVal(G, 'lucky');
-  const bonus = lk ? lk.rareAdd : 0;
-  const take = Math.min(t.common - 0.05, shift + bonus);
+  const take = Math.min(t.common - 0.05, shift);
   const fromShift = Math.min(shift, take);
   t.common -= take;
   t.rare += fromShift + (take - fromShift) / 2;
@@ -480,8 +480,7 @@ export function rarityTable(G) {
 export function rollCards(G, rng = Math.random) {
   const traits = G.traits || [];
   const ups = G.upgrades || {};
-  const lk = traitVal(G, 'lucky');
-  const n = lk ? lk.cards : CARD_RULES.count;
+  const n = CARD_RULES.count;
   const tlv = G.traitLv || {};
   const next = ENEMIES[G.stage] || null;              // G.stage = 방금 이긴 스테이지 → 다음 적
   const pools = {
@@ -554,9 +553,9 @@ export function calcStats(G) {
     shieldHits: 1 + (sp === 'heavy' ? STATUS.heavy.shieldHits - 1 : 0),
     guardHits: sp === 'heavy' ? 2 : 1,
     forceMul: (sp === 'heavy' ? STATUS.heavy.forceMul : 1) * (ca ? ca.force : 1),
-    jamImmune: !!ca,
+    jamImmune: false,
     adaptImmune: !!(ca && ca.adapt),
-    cdMul: ca ? ca.cd : 1,
+    cdMul: 1,
     healCut: 0,                // 회복량 ×(1-healCut); 독 스택>0 이면 추가로 ×(1-STATUS.poison.healCut)
     ballR: CONST.BALL_R * (gi ? gi.size : 1),
     maxSpeed: CONST.MAX_SPEED * (sp === 'heavy' ? STATUS.heavy.speedMul : 1) * (sp === 'gale' ? STATUS.gale.speedMul : 1),
@@ -566,7 +565,8 @@ export function calcStats(G) {
     chainMul: sp === 'chain' ? STATUS.chain.mul * specialScale : 0,
     saveSec: lv('safety') * UPGRADES.safety.saveSec,
     // 특성 수치 (null = 없음) — 쓰는 곳: main.js
-    comet: V('comet'), echo: V('echo'), domino: V('domino'), fist: V('fist'), feather: V('feather'),
+    comet: V('comet'), echo: V('echo'), domino: V('domino'), feather: V('feather'),
     rainbow: V('rainbow'), piggy: V('piggy'), fury: V('fury'), reaper: V('reaper'), twin: V('twin'),
+    blast: V('blast'), cell: V('cell'),
   };
 }

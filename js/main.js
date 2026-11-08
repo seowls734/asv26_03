@@ -16,7 +16,7 @@ const LOOP_SAFE_Y = 560;    // 이보다 아래(플리퍼 근처)는 루프 감�
 const KICK_FREE = 10;       // 플리퍼 없이 이 횟수까지는 튕김 힘 100%
 const KICK_DECAY = 0.8;     // 그 뒤 한 번마다 힘 ×0.8
 const LANE_STUCK = 2.5;     // 발사 레인에 이 시간(초) 넘게 있으면 발사대로 되돌림
-const DIRECT = new Set(['bumper', 'lane', 'target', 'body', 'bank', 'chain']);
+const DIRECT = new Set(['bumper', 'lane', 'target', 'body', 'bank', 'chain', 'blast']);
 const rng = Math.random;
 
 let G = null;
@@ -49,7 +49,7 @@ function newRun() {
     cards: [], stats: {},
     // 추가 필드 (개발자): render/ui 참고용
     pausedFrom: null, launchT: 0, chainCount: 0, saveFlash: 0, muted: !!store.get('bb.muted', false),
-    combo: 0, ballDmg: 0, furyN: 0, furyT: 0,   // 특성: 도미노 연속 타수 · 저금통 · 분노 게이지
+    combo: 0, ballDmg: 0, furyN: 0, furyT: 0, blastQ: [],   // 특성: 도미노 연속 타수 · 저금통 · 분노 게이지 · 연쇄 폭발 대기
   };
   G.stats = calcStats(G);
   if (DEBUG) { window.__bb.G = G; }
@@ -69,7 +69,7 @@ function startStage(n) {
   G.enemy = fitEnemy(makeEnemy(n), G.frame);
   board = buildBoard(G.enemy, G.frame);
   if (DEBUG) window.__bb.board = board;
-  G.chainCount = 0; G.cards = []; G.furyN = 0; G.furyT = 0;
+  G.chainCount = 0; G.cards = []; G.furyN = 0; G.furyT = 0; G.blastQ = [];
   G.flippers.L.angle = board.flippers.L.rest; G.flippers.R.angle = board.flippers.R.rest;
   bus.emit('stageStart', { stage: n, world: G.world, enemy: G.enemy });
   toLaunch();
@@ -157,7 +157,7 @@ function hit(src, obj, x, y, amt = 0) {
     obj._t = G.time;
   }
   const st = e.status, S = G.stats;
-  const direct = DIRECT.has(src) || (src === 'fist' && S.fist && S.fist.direct);
+  const direct = DIRECT.has(src);
   const dot = src === 'burn' || src === 'poison';
   const fixed = src === 'echo' || src === 'piggy' || src === 'rainbow';   // amt 를 그대로 쓰는 특성 피해
   x = x ?? e.x; y = y ?? e.y;
@@ -176,7 +176,6 @@ function hit(src, obj, x, y, amt = 0) {
   if (src === 'chain') raw = DAMAGE.bumper * S.chainMul;
   else if (dot) raw = amt * S.dotMul;
   else if (fixed) raw = amt;
-  else if (src === 'fist') raw = DAMAGE.bumper * (S.fist ? S.fist.mul : 1) * S.bumperMul;
   else {
     raw = DAMAGE[src] || 0;
     raw *= src === 'bumper' ? S.bumperMul : src === 'lane' ? S.laneMul
@@ -522,6 +521,10 @@ function collideBall(b) {
     if (c) {
       b.kicks++; emitBump(b.x, b.y, 'wall', 0.6); hit('body', e, b.x - c.nx * b.r, b.y - c.ny * b.r);
       if (G.phase !== 'play') return;
+      if (b.small && G.time - (b.touchT ?? -99) > 0.15) {   // 세포: 작은 공은 3번 닿으면 죽음, 성장 시간 초기화
+        b.touchT = G.time; b.touch = (b.touch || 0) + 1; b.growT = 0;
+        if (b.touch >= (S.cell ? S.cell.touches : 3)) { b.alive = false; bus.emit('cellPop', { x: b.x, y: b.y }); }
+      }
       if (S.rainbow && b.rb > 0) {             // 무지개 충전 터뜨리기
         const amt = DAMAGE.body * S.bodyMul * S.dmgMul * b.rb * S.rainbow.mul;
         bus.emit('ability', { t: 'rainbow', label: `무지개 ×${b.rb}`, x: e.x, y: e.y });
@@ -541,13 +544,7 @@ function collideBall(b) {
     const tx = bf.px + Math.cos(f.angle) * bf.len, ty = bf.py + Math.sin(f.angle) * bf.len;
     const c = hitCapsule(b, bf.px, bf.py, tx, ty, bf.r, { bounce: 0.3, omega: f.av, px: bf.px, py: bf.py });
     if (c) { b.kicks = 0; G.combo = 0; }   // 플리퍼에 닿으면 튕김 힘 원상 복구, 도미노 초기화
-    if (c && Math.abs(f.av) > 1 && c.vn < -100) {
-      emitBump(b.x, b.y, 'flipper', Math.abs(f.av) / C.FLIPPER_SPEED);
-      if (S.fist && G.enemy && G.enemy.hp > 0) {   // 주먹 플리퍼
-        hit('fist', f, G.enemy.x, G.enemy.y);
-        if (G.phase !== 'play') return;
-      }
-    }
+    if (c && Math.abs(f.av) > 1 && c.vn < -100) emitBump(b.x, b.y, 'flipper', Math.abs(f.av) / C.FLIPPER_SPEED);
   }
   // 레인 (통과형)
   for (const l of board.lanes) {
@@ -682,6 +679,8 @@ function update(dt) {
   if (G.phase !== 'play') return;
   updateAbilities(dt);
   if (G.furyT > 0) G.furyT = Math.max(0, G.furyT - dt);   // 분노 게이지
+  traitBalls(dt);
+  if (G.phase !== 'play') return;
   // 끼임 방지
   for (const b of G.balls) {
     if (b.rest) continue;
@@ -706,6 +705,67 @@ function update(dt) {
         b.vx += Math.cos(a) * 200; b.vy += Math.sin(a) * 200 - 100; b.slowT = 0;
       }
     } else b.slowT = 0;
+  }
+}
+
+// ───────────────────────── 공 특성: 폭발 · 세포 ─────────────────────────
+function blastAt(x, y, depth) {
+  const S = G.stats, e = G.enemy;
+  if (!S.blast || !e || e.hp <= 0 || G.phase !== 'play') return;
+  bus.emit('blast', { x, y, r: S.blast.range + 20, depth });
+  if (depth > 0) bus.emit('ability', { t: 'blast', label: `연쇄 폭발 ×${depth + 1}`, x: e.x, y: e.y });
+  hit('blast', null, e.x, e.y);
+  if (G.phase !== 'play') return;
+  if (S.blast.chain && rng() < S.blast.chain) G.blastQ.push({ t: 0.25, x: x + (rng() - 0.5) * 40, y: y + (rng() - 0.5) * 40, depth: depth + 1 });
+}
+
+function traitBalls(dt) {
+  const S = G.stats, e = G.enemy;
+  // 연쇄 폭발 대기열
+  for (let i = G.blastQ.length - 1; i >= 0; i--) {
+    const q = G.blastQ[i];
+    q.t -= dt;
+    if (q.t <= 0) { G.blastQ.splice(i, 1); blastAt(q.x, q.y, q.depth); if (G.phase !== 'play') return; }
+  }
+  const born = [];
+  for (const b of G.balls) {
+    if (!b.alive || b.rest || b.inLane) continue;
+    // 폭발: 7.25초가 차 있고 적 주위에 있으면 펑
+    if (S.blast && e && e.hp > 0) {
+      b.blastT = Math.min(S.blast.every, (b.blastT || 0) + dt);
+      if (b.blastT >= S.blast.every && Math.hypot(b.x - e.x, b.y - e.y) - e.r - b.r < S.blast.range) {
+        b.blastT = 0;
+        blastAt(b.x, b.y, 0);
+        if (G.phase !== 'play') return;
+      }
+    }
+    // 세포
+    const cl = S.cell;
+    if (!cl) continue;
+    if (b.small) {
+      b.growT = (b.growT || 0) + dt;
+      if (b.growT >= cl.grow && (b.gen || 0) < cl.maxGrow) {
+        b.small = false; b.r = S.ballR; b.cellHp = 1; b.gen = (b.gen || 0) + 1; b.touch = 0; b.growT = 0;
+        bus.emit('ability', { t: 'cellGrow', label: '성장!', x: b.x, y: b.y });
+      }
+    } else if ((b.gen || 0) < cl.maxGrow) {
+      if (b.cellHp === undefined) b.cellHp = 1;
+      b.cellHp -= dt / cl.life;
+      if (b.cellHp <= 0) {                         // 분열: 작은 공 2개
+        b.alive = false;
+        const sp = Math.max(250, Math.hypot(b.vx, b.vy)), a = Math.atan2(b.vy, b.vx);
+        for (const s of [-1, 1]) {
+          const n = makeBall(b.x + s * 5, b.y, Math.cos(a + s * 0.5) * sp, Math.sin(a + s * 0.5) * sp);
+          n.r = S.ballR * cl.smallR; n.small = true; n.touch = 0; n.growT = 0; n.gen = b.gen || 0;
+          born.push(n);
+        }
+        bus.emit('ability', { t: 'cellSplit', label: '분열!', x: b.x, y: b.y });
+      }
+    }
+  }
+  if (born.length || G.balls.some((b) => !b.alive)) {
+    G.balls = G.balls.filter((b) => b.alive).concat(born);
+    if (!G.balls.length) lastBallLost();
   }
 }
 

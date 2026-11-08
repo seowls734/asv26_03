@@ -343,6 +343,7 @@ const CONST = {
 const DAMAGE = {
   bumper: 4, lane: 3, target: 8, body: 12,
   bank: 25,                  // 한 맵의 타깃을 전부 쓰러뜨리면 보너스 데미지 + 즉시 재설치
+  blast: 20,                 // 폭발 특성 1회
   guard: 0,                  // 호위병을 맞히면 적 데미지 없음 (호위병 체력만 -1)
   weakMul: 1.8, resistMul: 0.5,
   critChance: 0.05, critMul: 1.8,
@@ -383,6 +384,7 @@ const MATERIALS = {   // 8종
 };
 
 // ───────────────────────── 5. 특성 (최대 4종, 같은 특성 3번 = 각성) ─────────────────────────
+// 모든 특성은 '공'에만 붙는다 (플리퍼·카드 등에는 영향 없음).
 // lv[0] = 기본 (1~2번째 고름), lv[1] = 각성 ★ (3번째 고름). desc / star = 카드 설명.
 const TRAIT_AWAKEN = 3;
 const TRAITS = {
@@ -398,10 +400,6 @@ const TRAITS = {
               desc:'플리퍼에 닿기 전까지 연속으로 맞힐 때마다 피해 +5% (최대 +50%).',
               star:'한 번에 +10% (최대 +100%).',
               lv:[{ step:0.05, max:0.5 }, { step:0.1, max:1.0 }] },
-  fist:     { id:'fist',     name:'주먹 플리퍼', rarity:'common',
-              desc:'플리퍼로 공을 세게 칠 때마다 적에게 범퍼만큼 피해.',
-              star:'피해 ×2.5, 재질 효과·치명도 붙는다.',
-              lv:[{ mul:1, direct:false }, { mul:2.5, direct:true }] },
   feather:  { id:'feather',  name:'깃털 공',     rarity:'common',
               desc:'공이 올라가는 동안 중력 -30%. 위쪽에 더 오래 머문다.',
               star:'중력 -55%.',
@@ -415,9 +413,9 @@ const TRAITS = {
               star:'최대 8칸, 터지는 위력 ×1.7.',
               lv:[{ max:5, mul:0.6 }, { max:8, mul:1.0 }] },
   calm:     { id:'calm',     name:'고요한 마음', rarity:'common',
-              desc:'마비 무효, 밀치기·기울임 60% 감소.',
-              star:'밀치기·기울임·적응까지 무효, 적 능력 간격 ×1.4.',
-              lv:[{ force:0.4, cd:1, adapt:false }, { force:0, cd:1.4, adapt:true }] },
+              desc:'적의 밀치기·기울임에 공이 60% 덜 밀린다.',
+              star:'밀치기·기울임 무효, 적의 적응(재질 저항)도 무효.',
+              lv:[{ force:0.4, adapt:false }, { force:0, adapt:true }] },
   piggy:    { id:'piggy',    name:'저금통',      rarity:'rare',
               desc:'공이 빠질 때, 그 공으로 준 피해의 30%를 한 번에 되돌려 준다.',
               star:'60%를 되돌려 준다.',
@@ -430,10 +428,6 @@ const TRAITS = {
               desc:'적 HP 25% 이하일 때 피해 ×1.5.',
               star:'35% 이하에서 ×1.8, HP 8% 이하로 떨어지면 즉시 처형.',
               lv:[{ below:0.25, mul:1.5, kill:0 }, { below:0.35, mul:1.8, kill:0.08 }] },
-  lucky:    { id:'lucky',    name:'네잎클로버',  rarity:'rare',
-              desc:'카드를 4장 보여줌, 희귀 이상 확률 +5%p.',
-              star:'카드 5장, 희귀 이상 +15%p.',
-              lv:[{ cards:4, rareAdd:0.05 }, { cards:5, rareAdd:0.15 }] },
   giant:    { id:'giant',    name:'거인의 공',   rarity:'rare',
               desc:'공 크기 ×1.4, 몸통·타깃 피해 +30%.',
               star:'공 크기 ×1.7, 몸통·타깃 피해 +70%.',
@@ -442,6 +436,14 @@ const TRAITS = {
               desc:'발사할 때 30% 확률로 공이 하나 더 같이 나간다.',
               star:'항상 1개 더, 30% 확률로 2개 더 (최대 3개).',
               lv:[{ chance:0.3, extra:0 }, { chance:1, extra:0.3 }] },
+  blast:    { id:'blast',    name:'폭발',        rarity:'rare',
+              desc:'공이 적 주위(60px 안)에 있으면 7.25초마다 한 번 폭발해 큰 피해.',
+              star:'폭발할 때 30% 확률로 연쇄 폭발 (계속 이어질 수 있음).',
+              lv:[{ every:7.25, range:60, chain:0 }, { every:7.25, range:60, chain:0.3 }] },
+  cell:     { id:'cell',     name:'세포',        rarity:'epic',
+              desc:'공의 체력이 시간이 지날수록 닳고(14초), 다 닳으면 작은 공 2개로 분열. 작은 공은 적에게 3번 닿으면 죽고, 12초 동안 적에게 안 닿으면 원래 공으로 성장 (최대 2회).',
+              star:'성장 시간 25% 감소 (12초 → 9초).',
+              lv:[{ life:14, grow:12, touches:3, maxGrow:2, smallR:0.6 }, { life:14, grow:9, touches:3, maxGrow:2, smallR:0.6 }] },
   elemental:{ id:'elemental',name:'원소 증폭',   rarity:'epic',
               desc:'재질 효과 수치 ×1.5.',
               star:'재질 효과 ×2, 약점 배수 1.8 → 2.3.',
@@ -475,7 +477,7 @@ const UPGRADES = {
 
 // ───────────────────────── 7. 카드 뽑기 규칙 ─────────────────────────
 const CARD_RULES = {
-  count: 3,                                           // 네잎클로버 특성이면 TRAITS.lucky.lv[].cards
+  count: 3,
   rarity:     { common: 0.62, rare: 0.30, epic: 0.08 },
   bossRarity: { common: 0.30, rare: 0.48, epic: 0.22 },  // 보스 격파 직후
   stageShift: 0.005, stageShiftMax: 0.12,             // 스테이지당 common→rare 이동
@@ -773,9 +775,7 @@ function rarityTable(G) {
   const R = CARD_RULES;
   const t = { ...((G.enemy && G.enemy.boss) ? R.bossRarity : R.rarity) };
   const shift = Math.min(R.stageShiftMax, R.stageShift * Math.max(0, (G.stage || 1) - 1));
-  const lk = traitVal(G, 'lucky');
-  const bonus = lk ? lk.rareAdd : 0;
-  const take = Math.min(t.common - 0.05, shift + bonus);
+  const take = Math.min(t.common - 0.05, shift);
   const fromShift = Math.min(shift, take);
   t.common -= take;
   t.rare += fromShift + (take - fromShift) / 2;
@@ -786,8 +786,7 @@ function rarityTable(G) {
 function rollCards(G, rng = Math.random) {
   const traits = G.traits || [];
   const ups = G.upgrades || {};
-  const lk = traitVal(G, 'lucky');
-  const n = lk ? lk.cards : CARD_RULES.count;
+  const n = CARD_RULES.count;
   const tlv = G.traitLv || {};
   const next = ENEMIES[G.stage] || null;              // G.stage = 방금 이긴 스테이지 → 다음 적
   const pools = {
@@ -860,9 +859,9 @@ function calcStats(G) {
     shieldHits: 1 + (sp === 'heavy' ? STATUS.heavy.shieldHits - 1 : 0),
     guardHits: sp === 'heavy' ? 2 : 1,
     forceMul: (sp === 'heavy' ? STATUS.heavy.forceMul : 1) * (ca ? ca.force : 1),
-    jamImmune: !!ca,
+    jamImmune: false,
     adaptImmune: !!(ca && ca.adapt),
-    cdMul: ca ? ca.cd : 1,
+    cdMul: 1,
     healCut: 0,                // 회복량 ×(1-healCut); 독 스택>0 이면 추가로 ×(1-STATUS.poison.healCut)
     ballR: CONST.BALL_R * (gi ? gi.size : 1),
     maxSpeed: CONST.MAX_SPEED * (sp === 'heavy' ? STATUS.heavy.speedMul : 1) * (sp === 'gale' ? STATUS.gale.speedMul : 1),
@@ -872,8 +871,9 @@ function calcStats(G) {
     chainMul: sp === 'chain' ? STATUS.chain.mul * specialScale : 0,
     saveSec: lv('safety') * UPGRADES.safety.saveSec,
     // 특성 수치 (null = 없음) — 쓰는 곳: main.js
-    comet: V('comet'), echo: V('echo'), domino: V('domino'), fist: V('fist'), feather: V('feather'),
+    comet: V('comet'), echo: V('echo'), domino: V('domino'), feather: V('feather'),
     rainbow: V('rainbow'), piggy: V('piggy'), fury: V('fury'), reaper: V('reaper'), twin: V('twin'),
+    blast: V('blast'), cell: V('cell'),
   };
 }
 
@@ -1036,7 +1036,7 @@ const FRAMES = [
   { // 2. 둥근 돔 — 거대한 반구형 천장, 공중에 뜬 사선 슬링
     id: 'dome', name: '둥근 돔', gimmick: 'orbit',
     path: [
-      [[327, 20], ...arcPts(180, 232, 168, -55, -180, 18), [12, 470], [108, 604]],
+      [[327, 20], [230, 20], ...arcPts(180, 232, 168, -72, -180, 16), [12, 470], [108, 604]],   // 위쪽은 평평한 천장 → 발사한 공이 레인으로 되돌아오지 않게
       [[345, 470], [267, 604]],
     ],
     slings: [[58, 452, 92, 528, 'L'], [312, 452, 278, 528, 'R']],
@@ -1247,6 +1247,7 @@ const banners = [];  // 능력 이름 등 큰 글자
 const parts = [];    // 도트 파편 { x, y, vx, vy, c, life }
 const texts = [];    // 이번 프레임에 덧그릴 글자·배지
 const trails = new WeakMap();
+const rings = [];    // 폭발 고리 { x, y, r, life, max }
 
 function addFloat(f) { floats.push(f); if (floats.length > 50) floats.shift(); }
 function addParts(x, y, n, c, spd = 160) {
@@ -1297,6 +1298,12 @@ function initRender(cv) {
     banners.push({ x: W / 2, y: 276, text: t.star, c: '#fff3b0', s: 12, life: 2.6, max: 2.6 });
     for (let i = 0; i < 4; i++) addParts(W / 2 - 90 + i * 60, 260, 6, i % 2 ? '#ffd84a' : '#ffffff', 200);
   });
+  bus.on('blast', (d) => {
+    if (!d) return;
+    rings.push({ x: d.x, y: d.y, r: d.r || 70, life: 0.45, max: 0.45 });
+    addParts(d.x, d.y, 14, '#ffb030', 260); addParts(d.x, d.y, 8, '#ff4a2a', 200); addParts(d.x, d.y, 4, '#ffffff', 160);
+  });
+  bus.on('cellPop', (d) => { if (d) addParts(d.x, d.y, 8, '#9dffa8', 150); });
   bus.on('crumble', (d) => {
     if (!d) return;
     const sk = curSkin;
@@ -1827,10 +1834,37 @@ function drawBall(b, mat, G) {
     default: // shine
       sq(x - r * 0.35, y - r * 0.38, 4, '#ffffff');
   }
+  const S = (G && G.stats) || {};
+  if (S.blast && num(b.blastT) >= S.blast.every && Math.floor(num(G.time) * 8) % 2) {   // 폭발 준비됨
+    circle(x, y, r + 3, null, '#ffb030', 2);
+  }
+  if (S.cell) {
+    if (b.small) {                             // 남은 접촉 수 + 성장 진행
+      const left = Math.max(0, S.cell.touches - num(b.touch));
+      for (let i = 0; i < left; i++) sq(x - (left - 1) * 3 + i * 6, y - r - 6, 4, '#9dffa8');
+      if (num(b.gen) < S.cell.maxGrow) {
+        ctx.strokeStyle = hexA('#9dffa8', 0.7); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, num(b.growT) / S.cell.grow)); ctx.stroke();
+      }
+    } else if (typeof b.cellHp === 'number' && num(b.gen) < S.cell.maxGrow) {   // 세포 체력 바
+      const p = Math.max(0, Math.min(1, b.cellHp)), w = 20;
+      rect(x - w / 2 - 2, y - r - 10, w + 4, 6, '#000000');
+      rect(x - w / 2, y - r - 8, Math.max(2, w * p), 2, p > 0.5 ? '#7be08a' : p > 0.25 ? '#ffd84a' : '#ff4a4a');
+    }
+  }
   const rb = num(b.rb);                       // 무지개 충전 칸
   for (let i = 0; i < rb; i++) {
     const a = num(G && G.time) * 3 + (i / Math.max(1, rb)) * TAU;
     sq(x + Math.cos(a) * (r + 6), y + Math.sin(a) * (r + 6), 4, RAINBOW[i % RAINBOW.length]);
+  }
+}
+
+function drawRings(dt) {
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const q = rings[i]; q.life -= dt;
+    if (q.life <= 0) { rings.splice(i, 1); continue; }
+    const k = 1 - q.life / q.max;
+    circle(q.x, q.y, q.r * (0.3 + 0.7 * k), hexA('#ff9a30', 0.35 * (1 - k)), k < 0.5 ? '#ffffff' : '#ffb030', 4 * (1 - k) + 1);
   }
 }
 
@@ -1933,6 +1967,7 @@ function drawFrame(G, board, dt) {
   drawEnemy(G, t);
   for (const b of arr(G.balls)) if (b && b.alive !== false && typeof b.x === 'number') drawBall(b, G.material, G);
   drawFlippers(G, board);
+  drawRings(dt);
   drawParts(dt);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   crisp(ctx, BW, BH);
@@ -2152,7 +2187,7 @@ const LOOP_SAFE_Y = 560;    // 이보다 아래(플리퍼 근처)는 루프 감�
 const KICK_FREE = 10;       // 플리퍼 없이 이 횟수까지는 튕김 힘 100%
 const KICK_DECAY = 0.8;     // 그 뒤 한 번마다 힘 ×0.8
 const LANE_STUCK = 2.5;     // 발사 레인에 이 시간(초) 넘게 있으면 발사대로 되돌림
-const DIRECT = new Set(['bumper', 'lane', 'target', 'body', 'bank', 'chain']);
+const DIRECT = new Set(['bumper', 'lane', 'target', 'body', 'bank', 'chain', 'blast']);
 const rng = Math.random;
 
 let G = null;
@@ -2185,7 +2220,7 @@ function newRun() {
     cards: [], stats: {},
     // 추가 필드 (개발자): render/ui 참고용
     pausedFrom: null, launchT: 0, chainCount: 0, saveFlash: 0, muted: !!store.get('bb.muted', false),
-    combo: 0, ballDmg: 0, furyN: 0, furyT: 0,   // 특성: 도미노 연속 타수 · 저금통 · 분노 게이지
+    combo: 0, ballDmg: 0, furyN: 0, furyT: 0, blastQ: [],   // 특성: 도미노 연속 타수 · 저금통 · 분노 게이지 · 연쇄 폭발 대기
   };
   G.stats = calcStats(G);
   if (DEBUG) { window.__bb.G = G; }
@@ -2205,7 +2240,7 @@ function startStage(n) {
   G.enemy = fitEnemy(makeEnemy(n), G.frame);
   board = buildBoard(G.enemy, G.frame);
   if (DEBUG) window.__bb.board = board;
-  G.chainCount = 0; G.cards = []; G.furyN = 0; G.furyT = 0;
+  G.chainCount = 0; G.cards = []; G.furyN = 0; G.furyT = 0; G.blastQ = [];
   G.flippers.L.angle = board.flippers.L.rest; G.flippers.R.angle = board.flippers.R.rest;
   bus.emit('stageStart', { stage: n, world: G.world, enemy: G.enemy });
   toLaunch();
@@ -2293,7 +2328,7 @@ function hit(src, obj, x, y, amt = 0) {
     obj._t = G.time;
   }
   const st = e.status, S = G.stats;
-  const direct = DIRECT.has(src) || (src === 'fist' && S.fist && S.fist.direct);
+  const direct = DIRECT.has(src);
   const dot = src === 'burn' || src === 'poison';
   const fixed = src === 'echo' || src === 'piggy' || src === 'rainbow';   // amt 를 그대로 쓰는 특성 피해
   x = x ?? e.x; y = y ?? e.y;
@@ -2312,7 +2347,6 @@ function hit(src, obj, x, y, amt = 0) {
   if (src === 'chain') raw = DAMAGE.bumper * S.chainMul;
   else if (dot) raw = amt * S.dotMul;
   else if (fixed) raw = amt;
-  else if (src === 'fist') raw = DAMAGE.bumper * (S.fist ? S.fist.mul : 1) * S.bumperMul;
   else {
     raw = DAMAGE[src] || 0;
     raw *= src === 'bumper' ? S.bumperMul : src === 'lane' ? S.laneMul
@@ -2658,6 +2692,10 @@ function collideBall(b) {
     if (c) {
       b.kicks++; emitBump(b.x, b.y, 'wall', 0.6); hit('body', e, b.x - c.nx * b.r, b.y - c.ny * b.r);
       if (G.phase !== 'play') return;
+      if (b.small && G.time - (b.touchT ?? -99) > 0.15) {   // 세포: 작은 공은 3번 닿으면 죽음, 성장 시간 초기화
+        b.touchT = G.time; b.touch = (b.touch || 0) + 1; b.growT = 0;
+        if (b.touch >= (S.cell ? S.cell.touches : 3)) { b.alive = false; bus.emit('cellPop', { x: b.x, y: b.y }); }
+      }
       if (S.rainbow && b.rb > 0) {             // 무지개 충전 터뜨리기
         const amt = DAMAGE.body * S.bodyMul * S.dmgMul * b.rb * S.rainbow.mul;
         bus.emit('ability', { t: 'rainbow', label: `무지개 ×${b.rb}`, x: e.x, y: e.y });
@@ -2677,13 +2715,7 @@ function collideBall(b) {
     const tx = bf.px + Math.cos(f.angle) * bf.len, ty = bf.py + Math.sin(f.angle) * bf.len;
     const c = hitCapsule(b, bf.px, bf.py, tx, ty, bf.r, { bounce: 0.3, omega: f.av, px: bf.px, py: bf.py });
     if (c) { b.kicks = 0; G.combo = 0; }   // 플리퍼에 닿으면 튕김 힘 원상 복구, 도미노 초기화
-    if (c && Math.abs(f.av) > 1 && c.vn < -100) {
-      emitBump(b.x, b.y, 'flipper', Math.abs(f.av) / C.FLIPPER_SPEED);
-      if (S.fist && G.enemy && G.enemy.hp > 0) {   // 주먹 플리퍼
-        hit('fist', f, G.enemy.x, G.enemy.y);
-        if (G.phase !== 'play') return;
-      }
-    }
+    if (c && Math.abs(f.av) > 1 && c.vn < -100) emitBump(b.x, b.y, 'flipper', Math.abs(f.av) / C.FLIPPER_SPEED);
   }
   // 레인 (통과형)
   for (const l of board.lanes) {
@@ -2818,6 +2850,8 @@ function update(dt) {
   if (G.phase !== 'play') return;
   updateAbilities(dt);
   if (G.furyT > 0) G.furyT = Math.max(0, G.furyT - dt);   // 분노 게이지
+  traitBalls(dt);
+  if (G.phase !== 'play') return;
   // 끼임 방지
   for (const b of G.balls) {
     if (b.rest) continue;
@@ -2842,6 +2876,67 @@ function update(dt) {
         b.vx += Math.cos(a) * 200; b.vy += Math.sin(a) * 200 - 100; b.slowT = 0;
       }
     } else b.slowT = 0;
+  }
+}
+
+// ───────────────────────── 공 특성: 폭발 · 세포 ─────────────────────────
+function blastAt(x, y, depth) {
+  const S = G.stats, e = G.enemy;
+  if (!S.blast || !e || e.hp <= 0 || G.phase !== 'play') return;
+  bus.emit('blast', { x, y, r: S.blast.range + 20, depth });
+  if (depth > 0) bus.emit('ability', { t: 'blast', label: `연쇄 폭발 ×${depth + 1}`, x: e.x, y: e.y });
+  hit('blast', null, e.x, e.y);
+  if (G.phase !== 'play') return;
+  if (S.blast.chain && rng() < S.blast.chain) G.blastQ.push({ t: 0.25, x: x + (rng() - 0.5) * 40, y: y + (rng() - 0.5) * 40, depth: depth + 1 });
+}
+
+function traitBalls(dt) {
+  const S = G.stats, e = G.enemy;
+  // 연쇄 폭발 대기열
+  for (let i = G.blastQ.length - 1; i >= 0; i--) {
+    const q = G.blastQ[i];
+    q.t -= dt;
+    if (q.t <= 0) { G.blastQ.splice(i, 1); blastAt(q.x, q.y, q.depth); if (G.phase !== 'play') return; }
+  }
+  const born = [];
+  for (const b of G.balls) {
+    if (!b.alive || b.rest || b.inLane) continue;
+    // 폭발: 7.25초가 차 있고 적 주위에 있으면 펑
+    if (S.blast && e && e.hp > 0) {
+      b.blastT = Math.min(S.blast.every, (b.blastT || 0) + dt);
+      if (b.blastT >= S.blast.every && Math.hypot(b.x - e.x, b.y - e.y) - e.r - b.r < S.blast.range) {
+        b.blastT = 0;
+        blastAt(b.x, b.y, 0);
+        if (G.phase !== 'play') return;
+      }
+    }
+    // 세포
+    const cl = S.cell;
+    if (!cl) continue;
+    if (b.small) {
+      b.growT = (b.growT || 0) + dt;
+      if (b.growT >= cl.grow && (b.gen || 0) < cl.maxGrow) {
+        b.small = false; b.r = S.ballR; b.cellHp = 1; b.gen = (b.gen || 0) + 1; b.touch = 0; b.growT = 0;
+        bus.emit('ability', { t: 'cellGrow', label: '성장!', x: b.x, y: b.y });
+      }
+    } else if ((b.gen || 0) < cl.maxGrow) {
+      if (b.cellHp === undefined) b.cellHp = 1;
+      b.cellHp -= dt / cl.life;
+      if (b.cellHp <= 0) {                         // 분열: 작은 공 2개
+        b.alive = false;
+        const sp = Math.max(250, Math.hypot(b.vx, b.vy)), a = Math.atan2(b.vy, b.vx);
+        for (const s of [-1, 1]) {
+          const n = makeBall(b.x + s * 5, b.y, Math.cos(a + s * 0.5) * sp, Math.sin(a + s * 0.5) * sp);
+          n.r = S.ballR * cl.smallR; n.small = true; n.touch = 0; n.growT = 0; n.gen = b.gen || 0;
+          born.push(n);
+        }
+        bus.emit('ability', { t: 'cellSplit', label: '분열!', x: b.x, y: b.y });
+      }
+    }
+  }
+  if (born.length || G.balls.some((b) => !b.alive)) {
+    G.balls = G.balls.filter((b) => b.alive).concat(born);
+    if (!G.balls.length) lastBallLost();
   }
 }
 
