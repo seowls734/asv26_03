@@ -1,4 +1,5 @@
-# 한 파일짜리 HTML 만들기: index.html + css + js 모듈을 play.html 하나로 합친다.
+# 한 파일짜리 HTML 만들기: dev.html(개발용) + css + js 모듈을 하나로 합쳐 index.html 과 play.html 로 쓴다.
+# 사이트 첫 주소(index.html)와 play.html 이 같은 진짜 게임이 된다.
 # play.html 은 서버 없이 더블클릭(file://)으로도, 어느 웹사이트에 올려도 그대로 실행된다.
 # 사용: python tools/build_single.py
 import base64
@@ -35,7 +36,7 @@ def convert(name, src):
 
 
 def main():
-    html = (ROOT / 'index.html').read_text(encoding='utf-8')
+    html = (ROOT / 'dev.html').read_text(encoding='utf-8')
     css = (ROOT / 'css/style.css').read_text(encoding='utf-8')
     # 글꼴은 base64 로 CSS 안에 넣는다 (서버 없이도 픽셀 글꼴이 나오게)
     def font(m):
@@ -54,10 +55,11 @@ def main():
     html = html.replace('<script type="module" src="js/main.js"></script>',
                         f'<script>\n(function () {{\n{js}\n}})();\n</script>')
     if 'src="js/' in html or 'href="css/' in html:
-        raise SystemExit('index.html 의 css/js 연결 부분을 찾지 못했습니다')
-    out = ROOT / 'play.html'
-    out.write_text(html, encoding='utf-8')
-    print(f'만들었습니다: {out} ({out.stat().st_size // 1024} KB)')
+        raise SystemExit('dev.html 의 css/js 연결 부분을 찾지 못했습니다')
+    for name in ('index.html', 'play.html'):
+        out = ROOT / name
+        out.write_text(html, encoding='utf-8')
+        print(f'만들었습니다: {out} ({out.stat().st_size // 1024} KB)')
 
 
 if __name__ == '__main__':

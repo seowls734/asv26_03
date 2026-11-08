@@ -6,10 +6,10 @@
 ```
 python -m http.server 8765
 ```
-→ http://localhost:8765/ (디버그: `?debug` → `window.__bb`)
+→ http://localhost:8765/dev.html (개발용, js 모듈 그대로 · 디버그: `?debug` → `window.__bb`)
 
 ## 한 파일 배포본
-`python tools/build_single.py` → `play.html` (CSS·JS 전부 인라인, 서버 없이 더블클릭/아무 웹사이트에 올려도 실행). js/css 를 고친 뒤에는 다시 실행해 갱신한다.
+`python tools/build_single.py` → `index.html` + `play.html` (같은 내용, CSS·JS·글꼴 전부 인라인, 서버 없이 더블클릭/아무 웹사이트에 올려도 실행). **진짜 게임은 이 두 파일**이고 사이트 첫 주소가 index.html 이다. js/css/dev.html 을 고친 뒤에는 꼭 다시 실행해 갱신한다. index.html 은 직접 고치지 않는다.
 
 ## 팀 역할 (.claude/agents/)
 planner(기획) → developer(구현) / designer(화면·그림) → tester(검증)

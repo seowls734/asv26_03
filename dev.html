@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#06140b">
+<title>바운스 브레이커</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <header id="hud" data-ui>
+    <div class="hrow">
+      <span id="hStage" class="hstage">1/25</span>
+      <span id="hWorld" class="hworld">초록 이끼숲</span>
+      <span class="hgrow"></span>
+      <span class="hlabel">공</span><span id="hBalls" class="hballs">3</span>
+      <span id="hScore" class="hscore">0</span>
+      <button id="btnPause" class="ibtn" aria-label="일시정지">II</button>
+    </div>
+    <div class="hrow">
+      <span id="hMat" class="hmat"></span>
+      <span id="hTraits" class="htraits"></span>
+    </div>
+    <div class="hrow henemy">
+      <span id="hEnemy" class="hename"></span>
+      <span id="hWeak" class="htag weak"></span>
+      <span id="hResist" class="htag resist"></span>
+      <span id="hAbil" class="habil"></span>
+    </div>
+  </header>
+
+  <main id="stage">
+    <canvas id="board"></canvas>
+    <div id="hint" class="hint hidden">길게 눌렀다 떼서 발사</div>
+  </main>
+
+  <!-- 타이틀 -->
+  <section id="scrTitle" class="screen ui-block" data-ui>
+    <div class="panel">
+      <h1 class="logo">바운스<br>브레이커</h1>
+      <p class="sub">공을 튕겨 적을 부수는 핀볼 로그라이트</p>
+      <button id="btnStart" class="btn primary">시작</button>
+      <p id="titleBest" class="best">최고 기록: 없음</p>
+      <p class="help">왼쪽/오른쪽 절반 터치 = 플리퍼 · 길게 눌렀다 떼면 발사</p>
+    </div>
+  </section>
+
+  <!-- 카드 선택 -->
+  <section id="scrCards" class="screen hidden ui-block" data-ui>
+    <div class="panel wide">
+      <h2>카드를 고르세요</h2>
+      <div id="nextEnemy" class="next"></div>
+      <div id="cardList" class="cards"></div>
+    </div>
+  </section>
+
+  <!-- 일시정지 -->
+  <section id="scrPause" class="screen hidden ui-block" data-ui>
+    <div class="panel">
+      <h2>일시정지</h2>
+      <button id="btnResume" class="btn primary">계속</button>
+      <button id="btnMute" class="btn">소리 끄기</button>
+      <button id="btnPauseTitle" class="btn">처음으로</button>
+    </div>
+  </section>
+
+  <!-- 게임오버 / 승리 -->
+  <section id="scrEnd" class="screen hidden ui-block" data-ui>
+    <div class="panel">
+      <h2 id="endTitle">게임 오버</h2>
+      <p id="endInfo" class="endinfo"></p>
+      <button id="btnRestart" class="btn primary">다시하기</button>
+      <button id="btnEndTitle" class="btn">처음으로</button>
+    </div>
+  </section>
+</div>
+<script>
+  // 파일을 더블클릭해서 열면(file://) 브라우저가 ES 모듈을 막는다 → 안내 표시
+  if (location.protocol === 'file:') {
+    document.addEventListener('DOMContentLoaded', function () {
+      var d = document.createElement('div');
+      d.style.cssText = 'position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;' +
+        'background:#0b1418;color:#fff;font:16px/1.6 system-ui,sans-serif;text-align:center;padding:24px';
+      d.innerHTML = '<div><b style="font-size:20px">이렇게 열면 실행되지 않아요</b><br><br>' +
+        '같은 폴더의 <b>play.html</b> 을 여세요.<br>(서버 없이 바로 실행되는 한 파일 버전)</div>';
+      document.body.appendChild(d);
+    });
+  }
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
