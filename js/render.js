@@ -3,7 +3,7 @@
 // 정수 배율로 확대(보간 없음)해서 도트 그림처럼 보이게 한다. 글자만 원래 해상도에 픽셀 글꼴(Galmuri11)로 덧그린다.
 // shadowBlur 금지.
 import { bus } from './events.js';
-import { WORLDS, MATERIALS, CONST } from './data.js';
+import { WORLDS, MATERIALS, TRAITS, CONST } from './data.js';
 import { GIMMICKS } from './board.js';
 
 const W = CONST.W || 375, H = CONST.H || 667;
@@ -95,6 +95,13 @@ export function initRender(cv) {
     if (!d || d.type === 'wall' || d.type === 'lane') return;
     const c = d.type === 'sling' ? '#ff8a5c' : d.type === 'target' ? '#ffd84a' : '#ffffff';
     addParts(d.x, d.y, d.type === 'flipper' ? 2 : 4, c, 140);
+  });
+  bus.on('traitAwake', (d) => {
+    const t = d && TRAITS[d.id];
+    if (!t) return;
+    banners.push({ x: W / 2, y: 250, text: `★ ${t.name} 각성! ★`, c: '#ffd84a', s: 22, life: 2.6, max: 2.6 });
+    banners.push({ x: W / 2, y: 276, text: t.star, c: '#fff3b0', s: 12, life: 2.6, max: 2.6 });
+    for (let i = 0; i < 4; i++) addParts(W / 2 - 90 + i * 60, 260, 6, i % 2 ? '#ffd84a' : '#ffffff', 200);
   });
   bus.on('crumble', (d) => {
     if (!d) return;
@@ -584,8 +591,10 @@ function drawEnemy(G, t) {
 }
 
 // ───────────── 공 ─────────────
-function drawBall(b, mat) {
+const RAINBOW = ['#ff4a4a', '#ff9a40', '#ffe14d', '#7be08a', '#4fa8ff', '#9b5de5', '#ff7eb6', '#ffffff'];
+function drawBall(b, mat, G) {
   const L = LOOK[mat] || LOOK.normal, r = num(b.r, 9), { x, y } = b;
+  if (G && num(G.furyT) > 0) circle(x, y, r + 4, Math.floor(num(G.time) * 10) % 2 ? '#ff3030' : '#ffb030');   // 분노
   // 잔상
   let tr = trails.get(b);
   if (!tr) { tr = []; trails.set(b, tr); }
@@ -623,6 +632,11 @@ function drawBall(b, mat) {
       break;
     default: // shine
       sq(x - r * 0.35, y - r * 0.38, 4, '#ffffff');
+  }
+  const rb = num(b.rb);                       // 무지개 충전 칸
+  for (let i = 0; i < rb; i++) {
+    const a = num(G && G.time) * 3 + (i / Math.max(1, rb)) * TAU;
+    sq(x + Math.cos(a) * (r + 6), y + Math.sin(a) * (r + 6), 4, RAINBOW[i % RAINBOW.length]);
   }
 }
 
@@ -723,7 +737,7 @@ export function drawFrame(G, board, dt) {
   ctx.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0);
   drawBoard(G, board, world, t);
   drawEnemy(G, t);
-  for (const b of arr(G.balls)) if (b && b.alive !== false && typeof b.x === 'number') drawBall(b, G.material);
+  for (const b of arr(G.balls)) if (b && b.alive !== false && typeof b.x === 'number') drawBall(b, G.material, G);
   drawFlippers(G, board);
   drawParts(dt);
   ctx.setTransform(1, 0, 0, 1, 0, 0);

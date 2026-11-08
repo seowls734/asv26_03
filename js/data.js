@@ -76,25 +76,82 @@ export const MATERIALS = {   // 8종
              desc:'레인 피해 ×2, 공 최고 속도 +10%.', look:'연두 소용돌이 잔상' },
 };
 
-// ───────────────────────── 5. 특성 (최대 4개) ─────────────────────────
+// ───────────────────────── 5. 특성 (최대 4종, 같은 특성 3번 = 각성) ─────────────────────────
+// lv[0] = 기본 (1~2번째 고름), lv[1] = 각성 ★ (3번째 고름). desc / star = 카드 설명.
+export const TRAIT_AWAKEN = 3;
 export const TRAITS = {
-  sharp:     { id:'sharp',     name:'날 선 공',   rarity:'common', dmgMul:0.15,              desc:'모든 피해 +15%.' },
-  critEye:   { id:'critEye',   name:'급소 노리기', rarity:'common', critAdd:0.10,             desc:'치명 확률 +10%p.' },
-  bumperPro: { id:'bumperPro', name:'범퍼 장인',   rarity:'common', bumperMul:0.4,            desc:'범퍼 피해 +40%.' },
-  laneRunner:{ id:'laneRunner',name:'레인 질주',   rarity:'common', laneMul:0.6,              desc:'레인 피해 +60%.' },
-  marksman:  { id:'marksman',  name:'명사수',     rarity:'common', targetMul:0.5, resetMul:0.7, desc:'타깃 피해 +50%, 타깃 재설치 30% 빠름.' },
-  breaker:   { id:'breaker',   name:'방패 부수기', rarity:'common', shieldHits:2, armorCut:2,  desc:'보호막을 한 번에 2칸 깸, 적 갑옷 -2.' },
-  jammer:    { id:'jammer',    name:'방해 전파',   rarity:'common', cdMul:1.25,               desc:'적 주기형 능력 간격 ×1.25.' },
-  lucky:     { id:'lucky',     name:'행운',       rarity:'rare',   cards:4, rareAdd:0.05,     desc:'카드를 4장 보여줌, 희귀 이상 확률 +5%p.' },
-  giant:     { id:'giant',     name:'거대화',     rarity:'rare',   bodyMul:0.3, targetMul:0.3, desc:'공 크기 ×1.5, 몸통·타깃 피해 +30%.' },
-  magnet:    { id:'magnet',    name:'자석',       rarity:'rare',   pull:140, range:150,       desc:'적 근처(150px)에서 공이 적 쪽으로 끌림.' },
-  curse:     { id:'curse',     name:'저주',       rarity:'rare',   healCut:0.6, dotMul:0.3,   desc:'적 회복 -60%, 지속 피해 +30%.' },
-  pierce:    { id:'pierce',    name:'꿰뚫기',     rarity:'rare',   resistMul:0.85, armorMul:0.5, desc:'저항 배수 0.5→0.85 (적응 포함), 갑옷 절반.' },
-  steady:    { id:'steady',    name:'평정심',     rarity:'rare',   forceMul:0.4,              desc:'마비 무효, 밀치기·기울임 60% 감소.' },
-  finisher:  { id:'finisher',  name:'마무리',     rarity:'rare',   below:0.2, mul:1.5,        desc:'적 HP 20% 이하일 때 피해 ×1.5.' },
-  multi:     { id:'multi',     name:'분신',       rarity:'epic',   every:25,                 desc:'공이 판 위에 있는 동안 25초마다 공 1개 추가 (최대 3개).' },
-  elemental: { id:'elemental', name:'원소 증폭',   rarity:'epic',   specialMul:0.5,           desc:'재질 효과 수치 ×1.5.' },
+  comet:    { id:'comet',    name:'혜성 꼬리',   rarity:'common',
+              desc:'공이 빠를 때(속도 1100 이상) 주는 피해 ×1.4.',
+              star:'속도 800 이상이면 피해 ×1.8.',
+              lv:[{ speed:1100, mul:1.4 }, { speed:800, mul:1.8 }] },
+  echo:     { id:'echo',     name:'메아리 범퍼', rarity:'common',
+              desc:'범퍼를 맞히면 25% 확률로 같은 피해가 한 번 더 울린다.',
+              star:'50% 확률, 메아리 피해 ×1.5.',
+              lv:[{ chance:0.25, mul:1 }, { chance:0.5, mul:1.5 }] },
+  domino:   { id:'domino',   name:'도미노',      rarity:'common',
+              desc:'플리퍼에 닿기 전까지 연속으로 맞힐 때마다 피해 +5% (최대 +50%).',
+              star:'한 번에 +10% (최대 +100%).',
+              lv:[{ step:0.05, max:0.5 }, { step:0.1, max:1.0 }] },
+  fist:     { id:'fist',     name:'주먹 플리퍼', rarity:'common',
+              desc:'플리퍼로 공을 세게 칠 때마다 적에게 범퍼만큼 피해.',
+              star:'피해 ×2.5, 재질 효과·치명도 붙는다.',
+              lv:[{ mul:1, direct:false }, { mul:2.5, direct:true }] },
+  feather:  { id:'feather',  name:'깃털 공',     rarity:'common',
+              desc:'공이 올라가는 동안 중력 -30%. 위쪽에 더 오래 머문다.',
+              star:'중력 -55%.',
+              lv:[{ cut:0.3 }, { cut:0.55 }] },
+  gambler:  { id:'gambler',  name:'도박사',      rarity:'common',
+              desc:'치명 확률 +15%p, 치명 배수 +0.6. 대신 치명이 아니면 피해 -15%.',
+              star:'치명 확률 +25%p, 배수 +1.2, 손해 없음.',
+              lv:[{ crit:0.15, critMul:0.6, miss:0.85 }, { crit:0.25, critMul:1.2, miss:1 }] },
+  rainbow:  { id:'rainbow',  name:'무지개 충전', rarity:'common',
+              desc:'레인을 지날 때마다 공에 무지개 1칸 충전(최대 5). 적 몸통을 맞히면 충전만큼 터진다.',
+              star:'최대 8칸, 터지는 위력 ×1.7.',
+              lv:[{ max:5, mul:0.6 }, { max:8, mul:1.0 }] },
+  calm:     { id:'calm',     name:'고요한 마음', rarity:'common',
+              desc:'마비 무효, 밀치기·기울임 60% 감소.',
+              star:'밀치기·기울임·적응까지 무효, 적 능력 간격 ×1.4.',
+              lv:[{ force:0.4, cd:1, adapt:false }, { force:0, cd:1.4, adapt:true }] },
+  piggy:    { id:'piggy',    name:'저금통',      rarity:'rare',
+              desc:'공이 빠질 때, 그 공으로 준 피해의 30%를 한 번에 되돌려 준다.',
+              star:'60%를 되돌려 준다.',
+              lv:[{ pct:0.3 }, { pct:0.6 }] },
+  fury:     { id:'fury',     name:'분노 게이지', rarity:'rare',
+              desc:'40번 맞힐 때마다 6초 동안 모든 피해 ×1.6.',
+              star:'30번마다 8초 동안 ×2.2.',
+              lv:[{ hits:40, dur:6, mul:1.6 }, { hits:30, dur:8, mul:2.2 }] },
+  reaper:   { id:'reaper',   name:'처형자',      rarity:'rare',
+              desc:'적 HP 25% 이하일 때 피해 ×1.5.',
+              star:'35% 이하에서 ×1.8, HP 8% 이하로 떨어지면 즉시 처형.',
+              lv:[{ below:0.25, mul:1.5, kill:0 }, { below:0.35, mul:1.8, kill:0.08 }] },
+  lucky:    { id:'lucky',    name:'네잎클로버',  rarity:'rare',
+              desc:'카드를 4장 보여줌, 희귀 이상 확률 +5%p.',
+              star:'카드 5장, 희귀 이상 +15%p.',
+              lv:[{ cards:4, rareAdd:0.05 }, { cards:5, rareAdd:0.15 }] },
+  giant:    { id:'giant',    name:'거인의 공',   rarity:'rare',
+              desc:'공 크기 ×1.4, 몸통·타깃 피해 +30%.',
+              star:'공 크기 ×1.7, 몸통·타깃 피해 +70%.',
+              lv:[{ size:1.4, add:0.3 }, { size:1.7, add:0.7 }] },
+  twin:     { id:'twin',     name:'쌍둥이 공',   rarity:'epic',
+              desc:'발사할 때 30% 확률로 공이 하나 더 같이 나간다.',
+              star:'항상 1개 더, 30% 확률로 2개 더 (최대 3개).',
+              lv:[{ chance:0.3, extra:0 }, { chance:1, extra:0.3 }] },
+  elemental:{ id:'elemental',name:'원소 증폭',   rarity:'epic',
+              desc:'재질 효과 수치 ×1.5.',
+              star:'재질 효과 ×2, 약점 배수 1.8 → 2.3.',
+              lv:[{ special:0.5, weak:0 }, { special:1.0, weak:0.5 }] },
 };
+
+/** 특성 단계: 0 없음, 1 기본, 2 각성 */
+export function traitTier(G, id) {
+  const n = ((G && G.traitLv) || {})[id] || (((G && G.traits) || []).includes(id) ? 1 : 0);
+  return n >= TRAIT_AWAKEN ? 2 : n > 0 ? 1 : 0;
+}
+/** 지금 단계의 특성 수치 (없으면 null) */
+export function traitVal(G, id) {
+  const t = traitTier(G, id);
+  return t && TRAITS[id] ? TRAITS[id].lv[t - 1] : null;
+}
 
 // ───────────────────────── 6. 강화 (중복 가능, max 까지) ─────────────────────────
 export const UPGRADES = {
@@ -112,12 +169,13 @@ export const UPGRADES = {
 
 // ───────────────────────── 7. 카드 뽑기 규칙 ─────────────────────────
 export const CARD_RULES = {
-  count: 3,                                           // 행운 특성이면 TRAITS.lucky.cards
+  count: 3,                                           // 네잎클로버 특성이면 TRAITS.lucky.lv[].cards
   rarity:     { common: 0.62, rare: 0.30, epic: 0.08 },
   bossRarity: { common: 0.30, rare: 0.48, epic: 0.22 },  // 보스 격파 직후
   stageShift: 0.005, stageShiftMax: 0.12,             // 스테이지당 common→rare 이동
   kind: { material: 0.25, trait: 0.30, upgrade: 0.45 },
   weakHint: 0.4,                                      // 다음 적 약점 재질 카드가 1장 끼어들 확률
+  ownedTrait: 0.45,                                   // 가진 특성(각성 전) 카드가 1장 끼어들 확률
 };
 
 // ───────────────────────── 8. 월드 ─────────────────────────
@@ -409,9 +467,8 @@ export function rarityTable(G) {
   const R = CARD_RULES;
   const t = { ...((G.enemy && G.enemy.boss) ? R.bossRarity : R.rarity) };
   const shift = Math.min(R.stageShiftMax, R.stageShift * Math.max(0, (G.stage || 1) - 1));
-  const traits = G.traits || [];
-  const ups = G.upgrades || {};
-  const bonus = (traits.includes('lucky') ? TRAITS.lucky.rareAdd : 0) ;
+  const lk = traitVal(G, 'lucky');
+  const bonus = lk ? lk.rareAdd : 0;
   const take = Math.min(t.common - 0.05, shift + bonus);
   const fromShift = Math.min(shift, take);
   t.common -= take;
@@ -423,11 +480,14 @@ export function rarityTable(G) {
 export function rollCards(G, rng = Math.random) {
   const traits = G.traits || [];
   const ups = G.upgrades || {};
-  const n = traits.includes('lucky') ? TRAITS.lucky.cards : CARD_RULES.count;
+  const lk = traitVal(G, 'lucky');
+  const n = lk ? lk.cards : CARD_RULES.count;
+  const tlv = G.traitLv || {};
   const next = ENEMIES[G.stage] || null;              // G.stage = 방금 이긴 스테이지 → 다음 적
   const pools = {
     material: Object.keys(MATERIALS).filter((id) => id !== 'normal' && id !== G.material && !(G.materials || []).includes(id)),
-    trait: traits.length >= 4 ? [] : Object.keys(TRAITS).filter((id) => !traits.includes(id)),
+    // 가진 특성은 각성 전까지 다시 나옴, 새 특성은 4종까지
+    trait: Object.keys(TRAITS).filter((id) => traits.includes(id) ? (tlv[id] || 1) < TRAIT_AWAKEN : traits.length < 4),
     upgrade: Object.keys(UPGRADES).filter((id) => (ups[id] || 0) < UPGRADES[id].max &&
       !(id === 'extraBall' && (G.ballsLeft || 0) >= CONST.MAX_BALLS)),
   };
@@ -440,10 +500,13 @@ export function rollCards(G, rng = Math.random) {
     const c = { kind, id, rarity: DEF[kind][id].rarity };
     const tag = tagOf(kind, id);
     if (tag) c.tag = tag;
+    if (kind === 'trait' && traits.includes(id)) c.stack = (tlv[id] || 1) + 1;   // 고르면 몇 번째가 되는지
     cards.push(c);
   };
 
   if (next && pools.material.includes(next.weak) && rng() < CARD_RULES.weakHint) push('material', next.weak);
+  const own = pools.trait.filter((id) => traits.includes(id));
+  if (own.length && rng() < CARD_RULES.ownedTrait) push('trait', own[Math.floor(rng() * own.length) % own.length]);
 
   const rt = rarityTable(G);
   let guard = 0;
@@ -465,43 +528,45 @@ export function rollCards(G, rng = Math.random) {
 
 // 특성·강화·재질을 합친 최종 수치 → main.js 가 카드 선택 후 G.stats = calcStats(G)
 export function calcStats(G) {
-  const tr = new Set(G.traits || []);
   const up = G.upgrades || {};
   const lv = (id) => up[id] || 0;
-  const T = (id, k) => (tr.has(id) ? TRAITS[id][k] : 0);
+  const V = (id) => traitVal(G, id);
   const mat = MATERIALS[G.material] || MATERIALS.normal;
   const sp = mat.special;
-  const specialScale = 1 + T('elemental', 'specialMul') + lv('special') * UPGRADES.special.specialMul;
+  const el = V('elemental'), gm = V('gambler'), gi = V('giant'), ca = V('calm');
+  const specialScale = 1 + (el ? el.special : 0) + lv('special') * UPGRADES.special.specialMul;
   const mm = (mul) => 1 + (mul - 1) * specialScale;           // 재질 배수에 숙련 반영
   return {
     specialScale,
-    dmgMul: 1 + T('sharp', 'dmgMul') + lv('power') * UPGRADES.power.dmgMul,
-    critChance: Math.min(CONST.CRIT_CAP, DAMAGE.critChance + T('critEye', 'critAdd') + lv('critRate') * UPGRADES.critRate.critAdd),
-    critMul: DAMAGE.critMul + lv('critDmg') * UPGRADES.critDmg.critMul,
-    bumperMul: (1 + T('bumperPro', 'bumperMul') + lv('bumperUp') * UPGRADES.bumperUp.bumperMul) * (sp === 'bouncy' ? mm(STATUS.bouncy.bumperMul) : 1),
-    laneMul: (1 + T('laneRunner', 'laneMul') + lv('laneUp') * UPGRADES.laneUp.laneMul) * (sp === 'gale' ? mm(STATUS.gale.laneMul) : 1),
-    targetMul: (1 + T('marksman', 'targetMul') + T('giant', 'targetMul') + lv('targetUp') * UPGRADES.targetUp.targetMul) * (sp === 'heavy' ? mm(STATUS.heavy.targetMul) : 1),
-    bodyMul: (1 + T('giant', 'bodyMul')) * (sp === 'heavy' ? mm(STATUS.heavy.bodyMul) : 1),
-    dotMul: 1 + T('curse', 'dotMul') + lv('dotUp') * UPGRADES.dotUp.dotMul,
-    weakMul: DAMAGE.weakMul,
-    resistMul: tr.has('pierce') ? TRAITS.pierce.resistMul : DAMAGE.resistMul,
-    armorCut: T('breaker', 'armorCut'),
-    armorMul: tr.has('pierce') ? TRAITS.pierce.armorMul : 1,
-    shieldHits: 1 + (sp === 'heavy' ? STATUS.heavy.shieldHits - 1 : 0) + (tr.has('breaker') ? TRAITS.breaker.shieldHits - 1 : 0),
+    dmgMul: 1 + lv('power') * UPGRADES.power.dmgMul,
+    critChance: Math.min(CONST.CRIT_CAP, DAMAGE.critChance + (gm ? gm.crit : 0) + lv('critRate') * UPGRADES.critRate.critAdd),
+    critMul: DAMAGE.critMul + (gm ? gm.critMul : 0) + lv('critDmg') * UPGRADES.critDmg.critMul,
+    missMul: gm ? gm.miss : 1,                                   // 치명이 아닐 때 배수 (도박사)
+    bumperMul: (1 + lv('bumperUp') * UPGRADES.bumperUp.bumperMul) * (sp === 'bouncy' ? mm(STATUS.bouncy.bumperMul) : 1),
+    laneMul: (1 + lv('laneUp') * UPGRADES.laneUp.laneMul) * (sp === 'gale' ? mm(STATUS.gale.laneMul) : 1),
+    targetMul: (1 + (gi ? gi.add : 0) + lv('targetUp') * UPGRADES.targetUp.targetMul) * (sp === 'heavy' ? mm(STATUS.heavy.targetMul) : 1),
+    bodyMul: (1 + (gi ? gi.add : 0)) * (sp === 'heavy' ? mm(STATUS.heavy.bodyMul) : 1),
+    dotMul: 1 + lv('dotUp') * UPGRADES.dotUp.dotMul,
+    weakMul: DAMAGE.weakMul + (el ? el.weak : 0),
+    resistMul: DAMAGE.resistMul,
+    armorCut: 0,
+    armorMul: 1,
+    shieldHits: 1 + (sp === 'heavy' ? STATUS.heavy.shieldHits - 1 : 0),
     guardHits: sp === 'heavy' ? 2 : 1,
-    forceMul: (sp === 'heavy' ? STATUS.heavy.forceMul : 1) * (tr.has('steady') ? TRAITS.steady.forceMul : 1),
-    jamImmune: tr.has('steady'),
-    cdMul: tr.has('jammer') ? TRAITS.jammer.cdMul : 1,
-    healCut: tr.has('curse') ? TRAITS.curse.healCut : 0,   // 회복량 ×(1-healCut); 독 스택>0 이면 추가로 ×(1-STATUS.poison.healCut)
-    ballR: CONST.BALL_R * (tr.has('giant') ? CONST.GIANT_MUL : 1),
+    forceMul: (sp === 'heavy' ? STATUS.heavy.forceMul : 1) * (ca ? ca.force : 1),
+    jamImmune: !!ca,
+    adaptImmune: !!(ca && ca.adapt),
+    cdMul: ca ? ca.cd : 1,
+    healCut: 0,                // 회복량 ×(1-healCut); 독 스택>0 이면 추가로 ×(1-STATUS.poison.healCut)
+    ballR: CONST.BALL_R * (gi ? gi.size : 1),
     maxSpeed: CONST.MAX_SPEED * (sp === 'heavy' ? STATUS.heavy.speedMul : 1) * (sp === 'gale' ? STATUS.gale.speedMul : 1),
     kickMul: sp === 'bouncy' ? mm(STATUS.bouncy.kickMul) : 1,
-    targetReset: CONST.TARGET_RESET * (tr.has('marksman') ? TRAITS.marksman.resetMul : 1),
+    targetReset: CONST.TARGET_RESET,
     freezeChance: sp === 'freeze' ? STATUS.freeze.chance * specialScale : 0,
     chainMul: sp === 'chain' ? STATUS.chain.mul * specialScale : 0,
-    finisher: tr.has('finisher'),
-    magnet: tr.has('magnet'),
-    multiEvery: tr.has('multi') ? TRAITS.multi.every : 0,
     saveSec: lv('safety') * UPGRADES.safety.saveSec,
+    // 특성 수치 (null = 없음) — 쓰는 곳: main.js
+    comet: V('comet'), echo: V('echo'), domino: V('domino'), fist: V('fist'), feather: V('feather'),
+    rainbow: V('rainbow'), piggy: V('piggy'), fury: V('fury'), reaper: V('reaper'), twin: V('twin'),
   };
 }

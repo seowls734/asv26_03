@@ -1,6 +1,6 @@
 // 바운스 브레이커 — DOM 화면 (디자이너 소유, docs/구조.md 6장 · docs/디자인.md)
 import { bus, store } from './events.js';
-import { MATERIALS, TRAITS, UPGRADES, ENEMIES, WORLDS, CONST, ABIL_LABEL, abilText } from './data.js';
+import { MATERIALS, TRAITS, TRAIT_AWAKEN, UPGRADES, ENEMIES, WORLDS, CONST, ABIL_LABEL, abilText } from './data.js';
 
 const $ = (id) => document.getElementById(id);
 const RAR = { common: '일반', rare: '희귀', epic: '영웅' };
@@ -67,11 +67,18 @@ function openCards(cards) {
     if (c.kind === 'upgrade') extra = ` <span class="badge" style="color:#9aa8a0">Lv ${((G.upgrades || {})[c.id] || 0) + 1}/${d.max || '?'}</span>`;
     if (c.tag === 'weak') extra += ' <span class="badge weak">다음 적 약점</span>';
     if (c.tag === 'resist') extra += ' <span class="badge resist">다음 적 저항</span>';
+    let desc = esc(d.desc);
+    if (c.kind === 'trait') {
+      const n = c.stack || 1;
+      if (n >= TRAIT_AWAKEN) { extra += ' <span class="badge awake">★ 각성!</span>'; desc = `<span class="star">★ ${esc(d.star)}</span>`; }
+      else if (n > 1) { extra += ` <span class="badge stack">${n}/${TRAIT_AWAKEN}</span>`; desc += `<br><span class="dim">한 번 더 고르면 각성: ${esc(d.star)}</span>`; }
+      else desc += `<br><span class="dim">3번 고르면 각성 ★</span>`;
+    }
     const icon = c.kind === 'material' ? sw(c.id) : '';
     return `<button class="card ${esc(rar)}" data-i="${i}">
       <div class="top"><span class="kind ${esc(c.kind)}">${KIND[c.kind] || ''}</span><span class="rar">${RAR[rar] || rar}</span></div>
       <div class="name">${icon}${esc(d.name)}${extra}</div>
-      <div class="desc">${esc(d.desc)}</div></button>`;
+      <div class="desc">${desc}</div></button>`;
   }).join('');
   el.cardList.querySelectorAll('.card').forEach((b) => guard(b, () => {
     const i = Number(b.dataset.i);
@@ -147,10 +154,12 @@ export function updateUI(G) {
   put(el.hMat, 'm' + G.material + '|' + (G.materials || []).join(','),
     `${sw(G.material || 'normal')}${esc(matName(G.material || 'normal'))}` +
     (owned.length ? ` <span style="opacity:.75;font-size:12px">+ ${owned.map((id) => sw(id)).join('')}</span>` : ''));
-  const tr = G.traits || [];
-  put(el.hTraits, 't' + tr.join(','), [0, 1, 2, 3].map((i) => {
+  const tr = G.traits || [], tl = G.traitLv || {};
+  put(el.hTraits, 't' + tr.map((id) => id + (tl[id] || 1)).join(','), [0, 1, 2, 3].map((i) => {
     const t = TRAITS[tr[i]];
-    return t ? `<span class="chip ${t.rarity}" title="${esc(t.desc)}">${esc(t.name)}</span>` : '<span class="chip empty">·</span>';
+    if (!t) return '<span class="chip empty">·</span>';
+    const n = tl[tr[i]] || 1, awake = n >= TRAIT_AWAKEN;
+    return `<span class="chip ${t.rarity}${awake ? ' awake' : ''}" title="${esc(awake ? t.star : t.desc)}">${awake ? '★' : ''}${esc(t.name)}${awake ? '' : `<small>${n}/${TRAIT_AWAKEN}</small>`}</span>`;
   }).join(''));
   const e = G.enemy;
   const ek = e ? `${e.name}|${e.boss}` : '-';

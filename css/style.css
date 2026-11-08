@@ -73,6 +73,8 @@ button { font: inherit; color: inherit; }
 .chip.empty { color: #4d5e55; border-style: dashed; min-width: 22px; text-align: center; }
 .chip.rare { border-color: var(--rare); }
 .chip.epic { border-color: var(--epic); }
+.chip small { margin-left: 3px; font-size: 10px; color: var(--dim); }
+.chip.awake { border-color: #ffd84a; color: #ffd84a; background: #3a2f0a; }
 .henemy { color: var(--dim); }
 .hename { color: var(--text); font-weight: 700; }
 .hename.boss { color: #ffcf5a; }
@@ -195,6 +197,10 @@ button { font: inherit; color: inherit; }
 .badge { font-size: 12px; font-weight: 700; padding: 0 6px; border-radius: 0; }
 .badge.weak { background: var(--weak); color: #2a2000; }
 .badge.resist { background: #5a6168; color: #eee; }
+.badge.stack { background: #22332a; color: #9df0b0; box-shadow: 0 0 0 2px #2f8f48; }
+.badge.awake { background: #ffd84a; color: #2a2000; animation: blink 0.6s steps(1) infinite; }
+.card .star { color: #ffd84a; }
+.card .dim { color: var(--dim); font-size: 12px; }
 
 /* ── 가로: 정보 바를 왼쪽으로 ── */
 @media (orientation: landscape) and (max-height: 600px) {
