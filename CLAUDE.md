@@ -8,6 +8,9 @@ python -m http.server 8765
 ```
 → http://localhost:8765/ (디버그: `?debug` → `window.__bb`)
 
+## 한 파일 배포본
+`python tools/build_single.py` → `play.html` (CSS·JS 전부 인라인, 서버 없이 더블클릭/아무 웹사이트에 올려도 실행). js/css 를 고친 뒤에는 다시 실행해 갱신한다.
+
 ## 팀 역할 (.claude/agents/)
 planner(기획) → developer(구현) / designer(화면·그림) → tester(검증)
 - 모듈 사이 약속(상태 구조·이벤트·함수 이름)은 **docs/구조.md** 가 기준이다. 바꿔야 하면 리드에게 보고하고 임의로 바꾸지 않는다.
