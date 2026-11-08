@@ -1,15 +1,17 @@
 // 바운스 브레이커 — 판 생성 (docs/구조.md 2·5장)
-// 테두리가 완전히 다른 판 5종 + 적 전용 맵(b,l,t,w,e). 판은 스테이지마다 바뀐다 (frameIndexOf).
-// 판마다 범퍼가 다른 장애물(gimmick)로 바뀐다: 숨쉬는 범퍼·떠도는 범퍼·회전 막대·부서지는 바위·소용돌이.
-// 발사 레인(x 345~375)과 오른쪽 위 진입 곡선만 모든 판이 공유한다.
+// 구조 자체가 다른 판 5종 + 적 전용 맵(b,l,t,w,e). 판은 스테이지마다 바뀐다 (frameIndexOf).
+//  - 발사 레인 위치(왼쪽/오른쪽), 플리퍼 수·위치, 배수구 모양, 특수 장치(킥아웃 구멍·킥백)가 판마다 다르다.
+//  - 판마다 범퍼가 다른 장애물(gimmick)로 바뀐다: 숨쉬는 범퍼·떠도는 범퍼·회전 막대·부서지는 바위·소용돌이.
 import { CONST } from './data.js';
 
 const D2R = Math.PI / 180;
 const MAP_CX = 178.5, MAP_CY = 255;   // 기획 맵 영역(x 42~315, y 60~450)의 중심
 
-// 공유 부분 실측값
-export const FRAME = {
-  laneX1: 345, laneX2: 375, laneTop: 100, laneFloor: 650, plunger: [360, 637], drainY: 690,
+// 발사 레인 (side 'R' = 오른쪽 x 345~375, 'L' = 왼쪽 x 0~30)
+export const FRAME = { laneTop: 100, laneFloor: 650, plungerY: 637, drainY: 690 };
+const LANES = {
+  R: { x1: 345, x2: 375, inner: 345, outer: 375, arc: [327, 68, 48, 270, 360], ceil: [327, 20] },
+  L: { x1: 0, x2: 30, inner: 30, outer: 0, arc: [48, 68, 48, 180, 270], ceil: [48, 20] },
 };
 
 function arcPts(cx, cy, R, a0, a1, n) {
@@ -22,71 +24,81 @@ function arcPts(cx, cy, R, a0, a1, n) {
 }
 
 // ── 판 5종 ──
-// path: 이어지는 벽 꼭짓점 목록들, slings: 튕기는 선분, extra: 추가 벽 선분
-// flip: 플리퍼 피벗·길이, fit: 적 맵을 판 안쪽에 맞추는 축척(s)과 중심(cx, cy)
+// lane: 발사 레인 쪽 · path: 이어지는 벽 꼭짓점 목록들 · slings: 튕기는 선분 [x1,y1,x2,y2,side]
+// flip: 아래 플리퍼 피벗·길이 · flips2: 추가 플리퍼 [{side, px, py, len}] (같은 쪽 버튼으로 함께 움직임)
+// pockets: 킥아웃 구멍 [x, y, r] (공을 잡았다가 적을 향해 쏨) · kickbacks: 킥백 [x, y, w, h] (빠지는 공을 위로 쳐 올림)
+// fit: 적 맵을 판 안에 맞추는 축척(s)·중심(cx, cy)·좌우 뒤집기(mirror: 레인이 왼쪽이면 입구 자리를 비우려고)
 export const FRAMES = [
-  { // 1. 팔각 요새 — 크게 깎인 네 모서리, 모서리 빗면이 슬링샷
-    id: 'octagon', name: '팔각 요새', gimmick: 'pulse',
+  { // 1. 거울 요새 — 발사대가 왼쪽, 오른쪽 벽 중간에 세 번째 플리퍼
+    id: 'mirror', name: '거울 요새', gimmick: 'pulse', lane: 'L',
     path: [
-      [[327, 20], [116, 20], [12, 124], [12, 440]],
-      [[52, 500], [110, 597]],
-      [[345, 440], [345, 440]],
-      [[305, 500], [265, 597]],
+      [[48, 20], [250, 20], ...arcPts(250, 133, 113, -90, 0, 8), [363, 440]],
+      [[323, 500], [283, 597]],
+      [[70, 500], [128, 597]],
     ],
-    slings: [[12, 440, 52, 500, 'L'], [345, 440, 305, 500, 'R']],
-    extra: [],
+    slings: [[30, 440, 70, 500, 'L'], [363, 440, 323, 500, 'R']],
+    flip: { L: [130, 600], R: [281, 600], len: 60 },
+    flips2: [{ side: 'R', px: 354, py: 300, len: 44 }],
+    pockets: [], kickbacks: [],
+    fit: { s: 0.72, cx: 190, cy: 268, mirror: true },
+  },
+  { // 2. 모래시계 — 가운데가 잘록한 두 방, 허리에 작은 플리퍼 2개 (플리퍼 4개)
+    id: 'hourglass', name: '모래시계', gimmick: 'orbit', lane: 'R',
+    path: [
+      [[327, 20], [60, 20], [12, 68], [12, 330], [110, 452]],
+      [[345, 330], [247, 452]],
+      [[100, 466], [30, 527], [30, 545]],
+      [[64, 588], [110, 598]],
+      [[257, 466], [327, 527], [327, 545]],
+      [[293, 588], [265, 598]],
+    ],
+    slings: [[30, 545, 64, 588, 'L'], [327, 545, 293, 588, 'R']],
     flip: { L: [112, 600], R: [263, 600], len: 60 },
-    fit: { s: 0.82, cx: 192, cy: 272 },
+    flips2: [{ side: 'L', px: 110, py: 452, len: 40 }, { side: 'R', px: 247, py: 452, len: 40 }],
+    pockets: [], kickbacks: [],
+    fit: { s: 0.66, cx: 178, cy: 200 },
   },
-  { // 2. 둥근 돔 — 거대한 반구형 천장, 공중에 뜬 사선 슬링
-    id: 'dome', name: '둥근 돔', gimmick: 'orbit',
+  { // 3. 킥아웃 계곡 — 왼쪽 벽에 킥아웃 구멍, 왼쪽 바깥 통로(아웃레인)에 킥백
+    id: 'pocket', name: '킥아웃 계곡', gimmick: 'spin', lane: 'R',
     path: [
-      [[327, 20], [230, 20], ...arcPts(180, 232, 168, -72, -180, 16), [12, 470], [108, 604]],   // 위쪽은 평평한 천장 → 발사한 공이 레인으로 되돌아오지 않게
-      [[345, 470], [267, 604]],
+      [[327, 20], [60, 20], [12, 68], [12, 660]],
+      [[56, 430], [56, 505]],
+      [[86, 556], [110, 597]],
+      [[305, 490], [265, 597]],
     ],
-    slings: [[58, 452, 92, 528, 'L'], [312, 452, 278, 528, 'R']],
-    extra: [],
-    flip: { L: [112, 607], R: [263, 607], len: 60 },
-    fit: { s: 0.74, cx: 182, cy: 292 },
+    slings: [[56, 505, 86, 556, 'L'], [345, 420, 305, 490, 'R']],
+    flip: { L: [112, 600], R: [263, 600], len: 60 },
+    flips2: [],
+    pockets: [[34, 250, 14]],
+    kickbacks: [[14, 572, 40, 52]],
+    fit: { s: 0.78, cx: 196, cy: 250 },
   },
-  { // 3. 좁은 탑 — 양옆이 안으로 들어온 좁고 긴 통로, 짧은 플리퍼
-    id: 'tower', name: '좁은 탑', gimmick: 'spin',
+  { // 4. 두 갈래 섬 — 가운데 섬이 배수구를 둘로 나눔, 플리퍼가 양쪽 벽에 붙음
+    id: 'island', name: '두 갈래 섬', gimmick: 'crumble', lane: 'R',
     path: [
-      [[327, 20], [88, 20], [46, 62], [46, 466]],
-      [[82, 528], [122, 601]],
-      [[345, 150], [316, 196], [316, 466]],
-      [[280, 528], [253, 601]],
+      [[327, 20], [100, 20], [12, 108], [12, 470], [40, 588]],
+      [[345, 470], [335, 588]],
+      [[130, 600], [244, 600]],
     ],
-    slings: [[46, 466, 82, 528, 'L'], [316, 466, 280, 528, 'R']],
-    extra: [],
-    flip: { L: [124, 604], R: [251, 604], len: 52 },
-    fit: { s: 0.8, cx: 182, cy: 276 },
+    slings: [[130, 600, 187, 505, 'L'], [244, 600, 187, 505, 'R']],
+    flip: { L: [40, 590], R: [335, 590], len: 64 },
+    flips2: [],
+    pockets: [], kickbacks: [],
+    fit: { s: 0.8, cx: 182, cy: 262 },
   },
-  { // 4. 지그재그 협곡 — 톱니 모양 옆벽, 넓고 긴 플리퍼, 공중 사선 슬링
-    id: 'canyon', name: '지그재그 협곡', gimmick: 'crumble',
+  { // 5. 쌍둥이 포켓 — 발사대가 왼쪽, 양쪽 벽에 킥아웃 구멍, 넓은 플리퍼
+    id: 'twinpocket', name: '쌍둥이 포켓', gimmick: 'whirl', lane: 'L',
     path: [
-      [[327, 20], [44, 20], [12, 52], [12, 190], [36, 222], [12, 254], [12, 316], [36, 348], [12, 380], [12, 470], [104, 594]],
-      [[345, 286], [321, 318], [345, 350]],
-      [[345, 470], [271, 594]],
+      [[48, 20], [300, 20], [363, 83], [363, 450]],
+      [[330, 505], [290, 596]],
+      [[63, 505], [103, 596]],
     ],
-    slings: [[60, 462, 96, 530, 'L'], [315, 462, 279, 530, 'R']],
-    extra: [],
-    flip: { L: [106, 597], R: [269, 597], len: 68 },
-    fit: { s: 0.8, cx: 188, cy: 270 },
-  },
-  { // 5. 쌍둥이 깔때기 — 천장에 V자 돌기, 가운데 배수구 위 삼각 기둥
-    id: 'twin', name: '쌍둥이 깔때기', gimmick: 'whirl',
-    path: [
-      [[327, 20], [206, 20], [178, 50], [150, 20], [42, 20], [12, 50], [12, 404], [30, 440]],
-      [[62, 503], [110, 598]],
-      [[345, 404], [325, 440]],
-      [[293, 503], [265, 598]],
-      [[187, 516], [170, 552], [204, 552], [187, 516]],
-    ],
-    slings: [[30, 440, 62, 503, 'L'], [325, 440, 293, 503, 'R']],
-    extra: [],
-    flip: { L: [112, 601], R: [263, 601], len: 60 },
-    fit: { s: 0.78, cx: 182, cy: 282 },
+    slings: [[30, 450, 63, 505, 'L'], [363, 450, 330, 505, 'R']],
+    flip: { L: [105, 600], R: [288, 600], len: 66 },
+    flips2: [],
+    pockets: [[52, 215, 14], [341, 215, 14]],
+    kickbacks: [],
+    fit: { s: 0.74, cx: 196, cy: 258, mirror: true },
   },
 ];
 
@@ -97,6 +109,11 @@ export const GIMMICKS = {
   spin:    { id: 'spin',    name: '회전 막대',   desc: '빙글빙글 도는 막대가 공을 쳐낸다.', spd: 2.6, w: 5, extra: 3 },
   crumble: { id: 'crumble', name: '부서지는 바위', desc: '3번 맞으면 부서지며 큰 피해, 5초 뒤 다시 생긴다.', hits: 3, respawn: 5 },
   whirl:   { id: 'whirl',   name: '소용돌이',     desc: '가까이 온 공을 범퍼 쪽으로 끌어당긴다.', range: 62, pull: 650 },
+};
+// 판 특수 장치 수치
+export const DEVICES = {
+  pocket:   { hold: 0.7, speed: 1250, cd: 1.2 },    // 킥아웃 구멍: 잡는 시간, 쏘는 속도, 다시 잡기까지
+  kickback: { vy: -1500, cd: 9 },                   // 킥백: 쳐 올리는 속도, 재충전 시간
 };
 
 /** 판 번호(0~4)를 고른다: 스테이지마다 다른 판, 월드마다 시작 판이 다르다 */
@@ -110,16 +127,17 @@ export function frameOf(idx) {
   return FRAMES[((idx | 0) % FRAMES.length + FRAMES.length) % FRAMES.length];
 }
 
-/** 적 인스턴스의 맵·위치·이동 범위를 판 모양에 맞게 축척/이동 (startStage에서 1회) */
+/** 적 인스턴스의 맵·위치·이동 범위를 판 모양에 맞게 축척/이동/뒤집기 (startStage에서 1회) */
 export function fitEnemy(enemy, frameIdx) {
   if (!enemy || enemy._fit) return enemy;
-  const { s, cx, cy } = frameOf(frameIdx).fit;
-  const X = (x) => cx + (x - MAP_CX) * s, Y = (y) => cy + (y - MAP_CY) * s;
+  const { s, cx, cy, mirror } = frameOf(frameIdx).fit;
+  const sx = mirror ? -s : s;
+  const X = (x) => cx + (x - MAP_CX) * sx, Y = (y) => cy + (y - MAP_CY) * s;
   const m = enemy.map || {};
   enemy.map = {
     b: (m.b || []).map(([x, y, r]) => [X(x), Y(y), r * s]),
-    l: (m.l || []).map(([x, y, w, h]) => [X(x), Y(y), w * s, h * s]),
-    t: (m.t || []).map(([x, y, len, a]) => [X(x), Y(y), len * s, a]),
+    l: (m.l || []).map(([x, y, w, h]) => [mirror ? X(x + w) : X(x), Y(y), w * s, h * s]),
+    t: (m.t || []).map(([x, y, len, a]) => [X(x), Y(y), len * s, mirror ? 180 - a : a]),
     w: (m.w || []).map(([x1, y1, x2, y2]) => [X(x1), Y(y1), X(x2), Y(y2)]),
     e: m.e ? [X(m.e[0]), Y(m.e[1]), m.e[2] * s] : undefined,
   };
@@ -137,18 +155,27 @@ export function fitEnemy(enemy, frameIdx) {
   return enemy;
 }
 
+function flipperOf(side, px, py, len) {
+  const rest = CONST.FLIPPER_REST * D2R, up = CONST.FLIPPER_UP * D2R;
+  return side === 'L'
+    ? { side, px, py, len, r: 7, rest, up: -up }
+    : { side, px, py, len, r: 7, rest: Math.PI - rest, up: Math.PI + up };
+}
+
 export function buildBoard(enemy, frameIdx = 0) {
   const F = FRAME, WR = CONST.WALL_R, fr = frameOf(frameIdx);
+  const LN = LANES[fr.lane] || LANES.R;
   const walls = [];
   const W = (x1, y1, x2, y2, extra) => walls.push({ x1, y1, x2, y2, r: WR, ...extra });
 
-  // ── 공유: 오른쪽 위 진입 곡선 + 발사 레인 ──
-  const ent = arcPts(327, 68, 48, 270, 360, 8);
+  // ── 발사 레인 + 진입 곡선 ──
+  const [ax, ay, ar, a0, a1] = LN.arc;
+  const ent = arcPts(ax, ay, ar, a0, a1, 8);
   for (let i = 1; i < ent.length; i++) W(ent[i - 1][0], ent[i - 1][1], ent[i][0], ent[i][1]);
-  W(375, 68, 375, F.laneFloor + 10);                 // 레인 바깥 벽
-  W(345, F.laneTop, 345, F.laneFloor + 10);          // 레인 / 필드 칸막이
-  W(345, F.laneFloor, 375, F.laneFloor);             // 레인 바닥(플런저)
-  W(345, F.laneTop, 345, 26, { gate: true });        // 일방 문: 필드 공이 레인으로 못 들어감
+  W(LN.outer, 68, LN.outer, F.laneFloor + 10);                 // 레인 바깥 벽
+  W(LN.inner, F.laneTop, LN.inner, F.laneFloor + 10);          // 레인 / 필드 칸막이
+  W(LN.x1, F.laneFloor, LN.x2, F.laneFloor);                   // 레인 바닥(플런저)
+  W(LN.inner, F.laneTop, LN.inner, 26, { gate: true });        // 일방 문: 필드 공이 레인으로 못 들어감
 
   // ── 판 고유 테두리 ──
   for (const path of fr.path) {
@@ -158,7 +185,6 @@ export function buildBoard(enemy, frameIdx = 0) {
       W(x1, y1, x2, y2);
     }
   }
-  for (const [x1, y1, x2, y2] of fr.extra) W(x1, y1, x2, y2);
   const slings = fr.slings.map(([x1, y1, x2, y2, side]) => ({ x1, y1, x2, y2, r: WR, side, flash: 0 }));
 
   // ── 적 맵 (fitEnemy로 이미 판에 맞춰진 좌표) ──
@@ -178,18 +204,28 @@ export function buildBoard(enemy, frameIdx = 0) {
   });
   for (const [x1, y1, x2, y2] of (m.w || [])) W(x1, y1, x2, y2, { map: true });
 
-  // ── 플리퍼 (화면 좌표 라디안, 끝점 = 피벗 + len·(cos, sin)) ──
+  // ── 플리퍼: 아래 두 개 + 추가 플리퍼 (같은 쪽은 각도를 함께 씀: G.flippers[side]) ──
   const len = fr.flip.len || CONST.FLIPPER_LEN;
-  const flippers = {
-    L: { px: fr.flip.L[0], py: fr.flip.L[1], len, r: 7, rest: CONST.FLIPPER_REST * D2R, up: -CONST.FLIPPER_UP * D2R },
-    R: { px: fr.flip.R[0], py: fr.flip.R[1], len, r: 7, rest: Math.PI - CONST.FLIPPER_REST * D2R, up: Math.PI + CONST.FLIPPER_UP * D2R },
-  };
+  const flippers = { L: flipperOf('L', fr.flip.L[0], fr.flip.L[1], len), R: flipperOf('R', fr.flip.R[0], fr.flip.R[1], len) };
+  const flipperList = [flippers.L, flippers.R, ...(fr.flips2 || []).map((f) => flipperOf(f.side, f.px, f.py, f.len))];
 
+  // ── 특수 장치 ──
+  const pockets = (fr.pockets || []).map(([x, y, r]) => ({ x, y, r, cd: 0, lit: 0 }));
+  const kickbacks = (fr.kickbacks || []).map(([x, y, w, h]) => ({ x, y, w, h, cd: 0, lit: 0 }));
+
+  const midX = fr.lane === 'L' ? 196 : 178;
   return {
     frame: fr.id, frameName: fr.name, gimmick: gm ? gm.id : '', gimmickName: gm ? gm.name : '', gt: 0,
-    walls, bumpers, lanes, targets, slings, flippers,
-    lane: { x1: 345, x2: 375, y1: F.laneTop, y2: F.laneFloor },
-    plunger: { x: F.plunger[0], y: F.plunger[1] },
+    walls, bumpers, lanes, targets, slings, flippers, flipperList, pockets, kickbacks,
+    lane: { x1: LN.x1, x2: LN.x2, y1: F.laneTop, y2: F.laneFloor, side: fr.lane === 'L' ? 'L' : 'R' },
+    plunger: { x: (LN.x1 + LN.x2) / 2, y: F.plungerY },
+    spawn: [midX, 80],
     drainY: F.drainY,
   };
+}
+
+/** 공이 발사 레인 띠 안에 있는지 (레인을 벗어나면 필드 공) */
+export function inLaneBand(board, x) {
+  const L = board.lane;
+  return L.side === 'L' ? x <= L.x2 + 17 : x >= L.x1 - 17;
 }

@@ -115,6 +115,12 @@ export function initRender(cv) {
     addParts(d.x, d.y, 14, '#ffb030', 260); addParts(d.x, d.y, 8, '#ff4a2a', 200); addParts(d.x, d.y, 4, '#ffffff', 160);
   });
   bus.on('cellPop', (d) => { if (d) addParts(d.x, d.y, 8, '#9dffa8', 150); });
+  bus.on('sonic', (d) => {
+    if (!d) return;
+    rings.push({ x: d.x, y: d.y, r: 46, life: 0.3, max: 0.3 });
+    addParts(d.x, d.y, 8, '#bfefff', 220);
+    shake = Math.max(shake, 2);
+  });
   bus.on('crumble', (d) => {
     if (!d) return;
     const sk = curSkin;
@@ -280,7 +286,7 @@ function drawBoard(G, b, world, t) {
     rect(x1 + 4, py + 4, x2 - x1 - 8, 2, '#8a9098');
     rect(x1 + (x2 - x1) / 2 - 2, py + 6, 4, Math.max(0, y2 + 30 - py - 6), '#6b7178');
     if (G.phase === 'launch' || ch > 0) {
-      const gh = 110, gx = x1 - 12, gy = y2 - gh - 10;
+      const gh = 110, gx = L.side === 'L' ? x2 + 6 : x1 - 12, gy = y2 - gh - 10;
       rect(gx - 2, gy - 2, 10, gh + 4, '#000000');
       const n = 10, filled = Math.round(ch * n);
       for (let i = 0; i < n; i++) {
@@ -315,6 +321,27 @@ function drawBoard(G, b, world, t) {
   }
   // 장애물
   for (const p of arr(b.bumpers)) drawObstacle(p, b.gimmick, t);
+  // 킥아웃 구멍: 검은 구멍 + 테두리 (준비되면 깜빡임)
+  for (const q of arr(b.pockets)) {
+    const ready = !(num(q.cd) > 0), lit = num(q.lit);
+    circle(q.x, q.y, q.r + 4, '#1a1e22');
+    circle(q.x, q.y, q.r + 2, lit > 0.05 ? '#ffffff' : ready ? (Math.floor(t * 3) % 2 ? '#ffd84a' : '#c99a00') : '#5a5f66');
+    circle(q.x, q.y, q.r - 1, '#05070a');
+    sq(q.x - q.r * 0.35, q.y - q.r * 0.35, 2, hexA('#ffffff', 0.5));
+  }
+  // 킥백: 바닥 화살표 (충전되면 밝게)
+  for (const k of arr(b.kickbacks)) {
+    const ready = !(num(k.cd) > 0), lit = num(k.lit);
+    const cx = k.x + k.w / 2, by = k.y + k.h;
+    const c = lit > 0.05 ? '#ffffff' : ready ? '#7be08a' : '#3a4a40';
+    rect(k.x + 4, by - 6, k.w - 8, 4, c);
+    for (let i = 0; i < 3; i++) {
+      if (!ready && i * 0.33 > 1 - num(k.cd) / 9) continue;
+      ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.lineCap = 'butt'; ctx.beginPath();
+      const yy = by - 14 - i * 12;
+      ctx.moveTo(cx - 8, yy + 6); ctx.lineTo(cx, yy); ctx.lineTo(cx + 8, yy + 6); ctx.stroke();
+    }
+  }
 }
 
 function drawBumperBody(x, y, r, f, t, sk) {
@@ -440,8 +467,9 @@ function flipperTip(side, fb, gf) {
 function drawFlippers(G, b) {
   const F = b.flippers; if (!F) return;
   const jam = G.enemy && G.enemy.status && num(G.enemy.status.jam) > 0 ? G.enemy.status.jamSide : '';
-  for (const side of ['L', 'R']) {
-    const fb = F[side]; if (!fb || typeof fb.px !== 'number') continue;
+  for (const fb of arr(b.flipperList).length ? b.flipperList : [F.L, F.R]) {
+    if (!fb || typeof fb.px !== 'number') continue;
+    const side = fb.side || (fb === F.L ? 'L' : 'R');
     const gf = G.flippers && G.flippers[side];
     const [tx, ty] = flipperTip(side, fb, gf);
     const r = num(fb.r, 8);
@@ -647,7 +675,6 @@ function drawEnemy(G, t) {
 }
 
 // ───────────── 공 ─────────────
-const RAINBOW = ['#ff4a4a', '#ff9a40', '#ffe14d', '#7be08a', '#4fa8ff', '#9b5de5', '#ff7eb6', '#ffffff'];
 function drawBall(b, mat, G) {
   const L = LOOK[mat] || LOOK.normal, r = num(b.r, 9), { x, y } = b;
   if (G && num(G.furyT) > 0) circle(x, y, r + 4, Math.floor(num(G.time) * 10) % 2 ? '#ff3030' : '#ffb030');   // 분노
@@ -707,11 +734,11 @@ function drawBall(b, mat, G) {
       rect(x - w / 2, y - r - 8, Math.max(2, w * p), 2, p > 0.5 ? '#7be08a' : p > 0.25 ? '#ffd84a' : '#ff4a4a');
     }
   }
-  const rb = num(b.rb);                       // 무지개 충전 칸
-  for (let i = 0; i < rb; i++) {
-    const a = num(G && G.time) * 3 + (i / Math.max(1, rb)) * TAU;
-    sq(x + Math.cos(a) * (r + 6), y + Math.sin(a) * (r + 6), 4, RAINBOW[i % RAINBOW.length]);
+  if (num(b.acc) > 0.05) {                    // 가속 페달: 쌓인 만큼 꼬리 점
+    const n = Math.min(5, Math.round(num(b.acc) * 5)), sp = Math.hypot(num(b.vx), num(b.vy)) || 1;
+    for (let i = 1; i <= n; i++) sq(x - b.vx / sp * (r + i * 4), y - b.vy / sp * (r + i * 4), 2, i % 2 ? '#ffd84a' : '#ff8a3d');
   }
+  if (b.slowed) circle(x, y, r + 3, null, hexA('#8fe3ff', 0.8), 2);   // 시간 감속
 }
 
 function drawRings(dt) {

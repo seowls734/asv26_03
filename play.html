@@ -344,7 +344,9 @@ const CONST = {
 const DAMAGE = {
   bumper: 4, lane: 3, target: 8, body: 12,
   bank: 25,                  // 한 맵의 타깃을 전부 쓰러뜨리면 보너스 데미지 + 즉시 재설치
-  blast: 20,                 // 폭발 특성 1회
+  blast: 30,                 // 폭발 특성 1회
+  sonic: 10,                 // 음속 돌파 충격파 1회
+  pocket: 10,                // 킥아웃 구멍에 들어감
   guard: 0,                  // 호위병을 맞히면 적 데미지 없음 (호위병 체력만 -1)
   weakMul: 1.8, resistMul: 0.5,
   critChance: 0.05, critMul: 1.8,
@@ -389,66 +391,69 @@ const MATERIALS = {   // 8종
 // lv[0] = 기본 (1~2번째 고름), lv[1] = 각성 ★ (3번째 고름). desc / star = 카드 설명.
 const TRAIT_AWAKEN = 3;
 const TRAITS = {
+  // ── 일반 ──
   comet:    { id:'comet',    name:'혜성 꼬리',   rarity:'common',
-              desc:'공이 빠를 때(속도 1100 이상) 주는 피해 ×1.4.',
-              star:'속도 800 이상이면 피해 ×1.8.',
-              lv:[{ speed:1100, mul:1.4 }, { speed:800, mul:1.8 }] },
+              desc:'공이 빠를 때(속도 600 이상) 주는 피해 ×1.4.',
+              star:'속도 450 이상이면 피해 ×1.8.',
+              lv:[{ speed:600, mul:1.4 }, { speed:450, mul:1.8 }] },
+  slick:    { id:'slick',    name:'미끄러운 공', rarity:'common',
+              desc:'벽에 부딪혀도 속도를 덜 잃고(반발 0.55 → 0.82), 세게 부딪힐 때마다 불꽃이 튀어 적에게 피해 1.',
+              star:'반발 0.9, 벽에 부딪힐 때마다 3% 빨라지고, 불꽃 피해 2.',
+              lv:[{ bounce:0.82, boost:0, spark:1 }, { bounce:0.9, boost:0.03, spark:2 }] },
+  accel:    { id:'accel',    name:'가속 페달',   rarity:'common',
+              desc:'범퍼·슬링에 튕길 때마다 그 공의 튕김 힘과 범퍼 피해 +6% (최대 +60%, 새 공이면 처음부터).',
+              star:'한 번에 +10% (최대 +150%).',
+              lv:[{ step:0.06, max:0.6 }, { step:0.1, max:1.5 }] },
   echo:     { id:'echo',     name:'메아리 범퍼', rarity:'common',
-              desc:'범퍼를 맞히면 25% 확률로 같은 피해가 한 번 더 울린다.',
-              star:'50% 확률, 메아리 피해 ×1.5.',
-              lv:[{ chance:0.25, mul:1 }, { chance:0.5, mul:1.5 }] },
-  domino:   { id:'domino',   name:'도미노',      rarity:'common',
-              desc:'플리퍼에 닿기 전까지 연속으로 맞힐 때마다 피해 +5% (최대 +50%).',
-              star:'한 번에 +10% (최대 +100%).',
-              lv:[{ step:0.05, max:0.5 }, { step:0.1, max:1.0 }] },
+              desc:'범퍼를 맞히면 45% 확률로 같은 피해가 한 번 더 울린다.',
+              star:'80% 확률, 메아리 피해 ×1.8.',
+              lv:[{ chance:0.45, mul:1 }, { chance:0.8, mul:1.8 }] },
   feather:  { id:'feather',  name:'깃털 공',     rarity:'common',
-              desc:'공이 올라가는 동안 중력 -30%. 위쪽에 더 오래 머문다.',
-              star:'중력 -55%.',
-              lv:[{ cut:0.3 }, { cut:0.55 }] },
+              desc:'공이 올라가는 동안 중력 −30%, 올라가는 중에 맞히면 피해 +25%.',
+              star:'중력 −45%, 피해 +70%.',
+              lv:[{ cut:0.3, bonus:0.25 }, { cut:0.45, bonus:0.7 }] },
   gambler:  { id:'gambler',  name:'도박사',      rarity:'common',
-              desc:'치명 확률 +15%p, 치명 배수 +0.6. 대신 치명이 아니면 피해 -15%.',
-              star:'치명 확률 +25%p, 배수 +1.2, 손해 없음.',
-              lv:[{ crit:0.15, critMul:0.6, miss:0.85 }, { crit:0.25, critMul:1.2, miss:1 }] },
-  rainbow:  { id:'rainbow',  name:'무지개 충전', rarity:'common',
-              desc:'레인을 지날 때마다 공에 무지개 1칸 충전(최대 5). 적 몸통을 맞히면 충전만큼 터진다.',
-              star:'최대 8칸, 터지는 위력 ×1.7.',
-              lv:[{ max:5, mul:0.6 }, { max:8, mul:1.0 }] },
-  calm:     { id:'calm',     name:'고요한 마음', rarity:'common',
-              desc:'적의 밀치기·기울임에 공이 60% 덜 밀린다.',
-              star:'밀치기·기울임 무효, 적의 적응(재질 저항)도 무효.',
-              lv:[{ force:0.4, adapt:false }, { force:0, adapt:true }] },
-  piggy:    { id:'piggy',    name:'저금통',      rarity:'rare',
-              desc:'공이 빠질 때, 그 공으로 준 피해의 30%를 한 번에 되돌려 준다.',
-              star:'60%를 되돌려 준다.',
-              lv:[{ pct:0.3 }, { pct:0.6 }] },
-  fury:     { id:'fury',     name:'분노 게이지', rarity:'rare',
-              desc:'40번 맞힐 때마다 6초 동안 모든 피해 ×1.6.',
-              star:'30번마다 8초 동안 ×2.2.',
-              lv:[{ hits:40, dur:6, mul:1.6 }, { hits:30, dur:8, mul:2.2 }] },
-  reaper:   { id:'reaper',   name:'처형자',      rarity:'rare',
-              desc:'적 HP 25% 이하일 때 피해 ×1.5.',
-              star:'35% 이하에서 ×1.8, HP 8% 이하로 떨어지면 즉시 처형.',
-              lv:[{ below:0.25, mul:1.5, kill:0 }, { below:0.35, mul:1.8, kill:0.08 }] },
-  giant:    { id:'giant',    name:'거인의 공',   rarity:'rare',
-              desc:'공 크기 ×1.4, 몸통·타깃 피해 +30%.',
-              star:'공 크기 ×1.7, 몸통·타깃 피해 +70%.',
-              lv:[{ size:1.4, add:0.3 }, { size:1.7, add:0.7 }] },
-  twin:     { id:'twin',     name:'쌍둥이 공',   rarity:'epic',
-              desc:'발사할 때 30% 확률로 공이 하나 더 같이 나간다.',
-              star:'항상 1개 더, 30% 확률로 2개 더 (최대 3개).',
-              lv:[{ chance:0.3, extra:0 }, { chance:1, extra:0.3 }] },
+              desc:'치명 확률 +15%p, 치명 배수 +0.8. 대신 치명이 아니면 피해 −10%.',
+              star:'치명 확률 +25%p, 배수 +1.4, 손해 없음.',
+              lv:[{ crit:0.15, critMul:0.8, miss:0.9 }, { crit:0.25, critMul:1.4, miss:1 }] },
+  // ── 희귀 ──
+  sonic:    { id:'sonic',    name:'음속 돌파',   rarity:'rare',
+              desc:'공이 음속(속도 1300)을 넘는 순간 충격파가 적을 때린다 (피해 10, 3초마다).',
+              star:'속도 1150만 넘어도, 피해 ×1.6, 2초마다.',
+              lv:[{ speed:1300, mul:1, cd:3 }, { speed:1150, mul:1.6, cd:2 }] },
+  slowmo:   { id:'slowmo',   name:'시간 감속',   rarity:'rare',
+              desc:'적 가까이(100px)에 오면 공의 시간이 20% 느려진다. 그동안 주는 모든 피해 +50%.',
+              star:'30% 느려지고, 피해 +100%.',
+              lv:[{ range:100, slow:0.2, bonus:0.5 }, { range:110, slow:0.3, bonus:1.0 }] },
   blast:    { id:'blast',    name:'폭발',        rarity:'rare',
-              desc:'공이 적 주위(60px 안)에 있으면 7.25초마다 한 번 폭발해 큰 피해.',
-              star:'폭발할 때 30% 확률로 연쇄 폭발 (계속 이어질 수 있음).',
-              lv:[{ every:7.25, range:60, chain:0 }, { every:7.25, range:60, chain:0.3 }] },
+              desc:'공이 적 주위(60px 안)에 있으면 7.25초마다 한 번 폭발 (피해 30).',
+              star:'폭발 피해 ×1.5, 폭발할 때 30% 확률로 연쇄 폭발 (계속 이어질 수 있음).',
+              lv:[{ every:7.25, range:60, chain:0, mul:1 }, { every:7.25, range:60, chain:0.3, mul:1.5 }] },
+  fury:     { id:'fury',     name:'분노 게이지', rarity:'rare',
+              desc:'15번 맞힐 때마다 6초 동안 모든 피해 ×1.5.',
+              star:'12번마다 8초 동안 ×2.',
+              lv:[{ hits:15, dur:6, mul:1.5 }, { hits:12, dur:8, mul:2 }] },
+  reaper:   { id:'reaper',   name:'처형자',      rarity:'rare',
+              desc:'적 HP 40% 이하일 때 피해 ×1.8.',
+              star:'50% 이하에서 ×2, HP 10% 이하로 떨어지면 즉시 처형.',
+              lv:[{ below:0.4, mul:1.8, kill:0 }, { below:0.5, mul:2.0, kill:0.1 }] },
+  piggy:    { id:'piggy',    name:'저금통',      rarity:'rare',
+              desc:'공이 빠질 때, 그 공으로 준 피해의 40%를 한 번에 되돌려 준다.',
+              star:'80%를 되돌려 준다.',
+              lv:[{ pct:0.4 }, { pct:0.8 }] },
+  giant:    { id:'giant',    name:'거인의 공',   rarity:'rare',
+              desc:'공 크기 ×1.3, 몸통·타깃 피해 +20%.',
+              star:'공 크기 ×1.5, 몸통·타깃 피해 +40%.',
+              lv:[{ size:1.3, add:0.2 }, { size:1.5, add:0.4 }] },
+  // ── 영웅 ──
+  twin:     { id:'twin',     name:'쌍둥이 공',   rarity:'epic',
+              desc:'발사할 때 60% 확률로 공이 하나 더 같이 나간다.',
+              star:'항상 1개 더, 50% 확률로 2개 더 (최대 3개).',
+              lv:[{ chance:0.6, extra:0 }, { chance:1, extra:0.5 }] },
   cell:     { id:'cell',     name:'세포',        rarity:'epic',
-              desc:'공의 체력이 시간이 지날수록 닳고(14초), 다 닳으면 작은 공 2개로 분열. 작은 공은 적에게 3번 닿으면 죽고, 12초 동안 적에게 안 닿으면 원래 공으로 성장 (최대 2회).',
-              star:'성장 시간 25% 감소 (12초 → 9초).',
-              lv:[{ life:14, grow:12, touches:3, maxGrow:2, smallR:0.6 }, { life:14, grow:9, touches:3, maxGrow:2, smallR:0.6 }] },
-  elemental:{ id:'elemental',name:'원소 증폭',   rarity:'epic',
-              desc:'재질 효과 수치 ×1.5.',
-              star:'재질 효과 ×2, 약점 배수 1.8 → 2.3.',
-              lv:[{ special:0.5, weak:0 }, { special:1.0, weak:0.5 }] },
+              desc:'공의 체력이 시간이 지날수록 닳고(10초), 다 닳으면 작은 공 2개로 분열. 작은 공은 피해 +40%, 적에게 3번 닿으면 죽고, 12초 동안 적에게 안 닿으면 원래 공으로 성장 (최대 2회).',
+              star:'성장 시간 25% 감소 (12초 → 9초), 작은 공 피해 +80%.',
+              lv:[{ life:10, grow:12, touches:3, maxGrow:2, smallR:0.6, smallDmg:0.4 }, { life:10, grow:9, touches:3, maxGrow:2, smallR:0.6, smallDmg:0.8 }] },
 };
 
 /** 특성 단계: 0 없음, 1 기본, 2 각성 */
@@ -839,8 +844,8 @@ function calcStats(G) {
   const V = (id) => traitVal(G, id);
   const mat = MATERIALS[G.material] || MATERIALS.normal;
   const sp = mat.special;
-  const el = V('elemental'), gm = V('gambler'), gi = V('giant'), ca = V('calm');
-  const specialScale = 1 + (el ? el.special : 0) + lv('special') * UPGRADES.special.specialMul;
+  const gm = V('gambler'), gi = V('giant'), sl = V('slick');
+  const specialScale = 1 + lv('special') * UPGRADES.special.specialMul;
   const mm = (mul) => 1 + (mul - 1) * specialScale;           // 재질 배수에 숙련 반영
   return {
     specialScale,
@@ -853,28 +858,28 @@ function calcStats(G) {
     targetMul: (1 + (gi ? gi.add : 0) + lv('targetUp') * UPGRADES.targetUp.targetMul) * (sp === 'heavy' ? mm(STATUS.heavy.targetMul) : 1),
     bodyMul: (1 + (gi ? gi.add : 0)) * (sp === 'heavy' ? mm(STATUS.heavy.bodyMul) : 1),
     dotMul: 1 + lv('dotUp') * UPGRADES.dotUp.dotMul,
-    weakMul: DAMAGE.weakMul + (el ? el.weak : 0),
+    weakMul: DAMAGE.weakMul,
     resistMul: DAMAGE.resistMul,
     armorCut: 0,
     armorMul: 1,
     shieldHits: 1 + (sp === 'heavy' ? STATUS.heavy.shieldHits - 1 : 0),
     guardHits: sp === 'heavy' ? 2 : 1,
-    forceMul: (sp === 'heavy' ? STATUS.heavy.forceMul : 1) * (ca ? ca.force : 1),
+    forceMul: sp === 'heavy' ? STATUS.heavy.forceMul : 1,
     jamImmune: false,
-    adaptImmune: !!(ca && ca.adapt),
     cdMul: 1,
     healCut: 0,                // 회복량 ×(1-healCut); 독 스택>0 이면 추가로 ×(1-STATUS.poison.healCut)
     ballR: CONST.BALL_R * (gi ? gi.size : 1),
     maxSpeed: CONST.MAX_SPEED * (sp === 'heavy' ? STATUS.heavy.speedMul : 1) * (sp === 'gale' ? STATUS.gale.speedMul : 1),
     kickMul: sp === 'bouncy' ? mm(STATUS.bouncy.kickMul) : 1,
+    wallBounce: sl ? sl.bounce : CONST.WALL_BOUNCE,
     targetReset: CONST.TARGET_RESET,
     freezeChance: sp === 'freeze' ? STATUS.freeze.chance * specialScale : 0,
     chainMul: sp === 'chain' ? STATUS.chain.mul * specialScale : 0,
     saveSec: lv('safety') * UPGRADES.safety.saveSec,
     // 특성 수치 (null = 없음) — 쓰는 곳: main.js
-    comet: V('comet'), echo: V('echo'), domino: V('domino'), feather: V('feather'),
-    rainbow: V('rainbow'), piggy: V('piggy'), fury: V('fury'), reaper: V('reaper'), twin: V('twin'),
-    blast: V('blast'), cell: V('cell'),
+    comet: V('comet'), slick: sl, accel: V('accel'), echo: V('echo'), feather: V('feather'),
+    sonic: V('sonic'), slowmo: V('slowmo'), blast: V('blast'), fury: V('fury'), reaper: V('reaper'),
+    piggy: V('piggy'), twin: V('twin'), cell: V('cell'),
   };
 }
 
@@ -996,16 +1001,18 @@ return { hitCapsule, hitCircle, clampSpeed, inRect };
 // ── board.js ──
 __M.board = (function () {
 // 바운스 브레이커 — 판 생성 (docs/구조.md 2·5장)
-// 테두리가 완전히 다른 판 5종 + 적 전용 맵(b,l,t,w,e). 판은 스테이지마다 바뀐다 (frameIndexOf).
-// 판마다 범퍼가 다른 장애물(gimmick)로 바뀐다: 숨쉬는 범퍼·떠도는 범퍼·회전 막대·부서지는 바위·소용돌이.
-// 발사 레인(x 345~375)과 오른쪽 위 진입 곡선만 모든 판이 공유한다.
+// 구조 자체가 다른 판 5종 + 적 전용 맵(b,l,t,w,e). 판은 스테이지마다 바뀐다 (frameIndexOf).
+//  - 발사 레인 위치(왼쪽/오른쪽), 플리퍼 수·위치, 배수구 모양, 특수 장치(킥아웃 구멍·킥백)가 판마다 다르다.
+//  - 판마다 범퍼가 다른 장애물(gimmick)로 바뀐다: 숨쉬는 범퍼·떠도는 범퍼·회전 막대·부서지는 바위·소용돌이.
 const { CONST } = __M.data;
 const D2R = Math.PI / 180;
 const MAP_CX = 178.5, MAP_CY = 255;   // 기획 맵 영역(x 42~315, y 60~450)의 중심
 
-// 공유 부분 실측값
-const FRAME = {
-  laneX1: 345, laneX2: 375, laneTop: 100, laneFloor: 650, plunger: [360, 637], drainY: 690,
+// 발사 레인 (side 'R' = 오른쪽 x 345~375, 'L' = 왼쪽 x 0~30)
+const FRAME = { laneTop: 100, laneFloor: 650, plungerY: 637, drainY: 690 };
+const LANES = {
+  R: { x1: 345, x2: 375, inner: 345, outer: 375, arc: [327, 68, 48, 270, 360], ceil: [327, 20] },
+  L: { x1: 0, x2: 30, inner: 30, outer: 0, arc: [48, 68, 48, 180, 270], ceil: [48, 20] },
 };
 
 function arcPts(cx, cy, R, a0, a1, n) {
@@ -1018,71 +1025,81 @@ function arcPts(cx, cy, R, a0, a1, n) {
 }
 
 // ── 판 5종 ──
-// path: 이어지는 벽 꼭짓점 목록들, slings: 튕기는 선분, extra: 추가 벽 선분
-// flip: 플리퍼 피벗·길이, fit: 적 맵을 판 안쪽에 맞추는 축척(s)과 중심(cx, cy)
+// lane: 발사 레인 쪽 · path: 이어지는 벽 꼭짓점 목록들 · slings: 튕기는 선분 [x1,y1,x2,y2,side]
+// flip: 아래 플리퍼 피벗·길이 · flips2: 추가 플리퍼 [{side, px, py, len}] (같은 쪽 버튼으로 함께 움직임)
+// pockets: 킥아웃 구멍 [x, y, r] (공을 잡았다가 적을 향해 쏨) · kickbacks: 킥백 [x, y, w, h] (빠지는 공을 위로 쳐 올림)
+// fit: 적 맵을 판 안에 맞추는 축척(s)·중심(cx, cy)·좌우 뒤집기(mirror: 레인이 왼쪽이면 입구 자리를 비우려고)
 const FRAMES = [
-  { // 1. 팔각 요새 — 크게 깎인 네 모서리, 모서리 빗면이 슬링샷
-    id: 'octagon', name: '팔각 요새', gimmick: 'pulse',
+  { // 1. 거울 요새 — 발사대가 왼쪽, 오른쪽 벽 중간에 세 번째 플리퍼
+    id: 'mirror', name: '거울 요새', gimmick: 'pulse', lane: 'L',
     path: [
-      [[327, 20], [116, 20], [12, 124], [12, 440]],
-      [[52, 500], [110, 597]],
-      [[345, 440], [345, 440]],
-      [[305, 500], [265, 597]],
+      [[48, 20], [250, 20], ...arcPts(250, 133, 113, -90, 0, 8), [363, 440]],
+      [[323, 500], [283, 597]],
+      [[70, 500], [128, 597]],
     ],
-    slings: [[12, 440, 52, 500, 'L'], [345, 440, 305, 500, 'R']],
-    extra: [],
+    slings: [[30, 440, 70, 500, 'L'], [363, 440, 323, 500, 'R']],
+    flip: { L: [130, 600], R: [281, 600], len: 60 },
+    flips2: [{ side: 'R', px: 354, py: 300, len: 44 }],
+    pockets: [], kickbacks: [],
+    fit: { s: 0.72, cx: 190, cy: 268, mirror: true },
+  },
+  { // 2. 모래시계 — 가운데가 잘록한 두 방, 허리에 작은 플리퍼 2개 (플리퍼 4개)
+    id: 'hourglass', name: '모래시계', gimmick: 'orbit', lane: 'R',
+    path: [
+      [[327, 20], [60, 20], [12, 68], [12, 330], [110, 452]],
+      [[345, 330], [247, 452]],
+      [[100, 466], [30, 527], [30, 545]],
+      [[64, 588], [110, 598]],
+      [[257, 466], [327, 527], [327, 545]],
+      [[293, 588], [265, 598]],
+    ],
+    slings: [[30, 545, 64, 588, 'L'], [327, 545, 293, 588, 'R']],
     flip: { L: [112, 600], R: [263, 600], len: 60 },
-    fit: { s: 0.82, cx: 192, cy: 272 },
+    flips2: [{ side: 'L', px: 110, py: 452, len: 40 }, { side: 'R', px: 247, py: 452, len: 40 }],
+    pockets: [], kickbacks: [],
+    fit: { s: 0.66, cx: 178, cy: 200 },
   },
-  { // 2. 둥근 돔 — 거대한 반구형 천장, 공중에 뜬 사선 슬링
-    id: 'dome', name: '둥근 돔', gimmick: 'orbit',
+  { // 3. 킥아웃 계곡 — 왼쪽 벽에 킥아웃 구멍, 왼쪽 바깥 통로(아웃레인)에 킥백
+    id: 'pocket', name: '킥아웃 계곡', gimmick: 'spin', lane: 'R',
     path: [
-      [[327, 20], [230, 20], ...arcPts(180, 232, 168, -72, -180, 16), [12, 470], [108, 604]],   // 위쪽은 평평한 천장 → 발사한 공이 레인으로 되돌아오지 않게
-      [[345, 470], [267, 604]],
+      [[327, 20], [60, 20], [12, 68], [12, 660]],
+      [[56, 430], [56, 505]],
+      [[86, 556], [110, 597]],
+      [[305, 490], [265, 597]],
     ],
-    slings: [[58, 452, 92, 528, 'L'], [312, 452, 278, 528, 'R']],
-    extra: [],
-    flip: { L: [112, 607], R: [263, 607], len: 60 },
-    fit: { s: 0.74, cx: 182, cy: 292 },
+    slings: [[56, 505, 86, 556, 'L'], [345, 420, 305, 490, 'R']],
+    flip: { L: [112, 600], R: [263, 600], len: 60 },
+    flips2: [],
+    pockets: [[34, 250, 14]],
+    kickbacks: [[14, 572, 40, 52]],
+    fit: { s: 0.78, cx: 196, cy: 250 },
   },
-  { // 3. 좁은 탑 — 양옆이 안으로 들어온 좁고 긴 통로, 짧은 플리퍼
-    id: 'tower', name: '좁은 탑', gimmick: 'spin',
+  { // 4. 두 갈래 섬 — 가운데 섬이 배수구를 둘로 나눔, 플리퍼가 양쪽 벽에 붙음
+    id: 'island', name: '두 갈래 섬', gimmick: 'crumble', lane: 'R',
     path: [
-      [[327, 20], [88, 20], [46, 62], [46, 466]],
-      [[82, 528], [122, 601]],
-      [[345, 150], [316, 196], [316, 466]],
-      [[280, 528], [253, 601]],
+      [[327, 20], [100, 20], [12, 108], [12, 470], [40, 588]],
+      [[345, 470], [335, 588]],
+      [[130, 600], [244, 600]],
     ],
-    slings: [[46, 466, 82, 528, 'L'], [316, 466, 280, 528, 'R']],
-    extra: [],
-    flip: { L: [124, 604], R: [251, 604], len: 52 },
-    fit: { s: 0.8, cx: 182, cy: 276 },
+    slings: [[130, 600, 187, 505, 'L'], [244, 600, 187, 505, 'R']],
+    flip: { L: [40, 590], R: [335, 590], len: 64 },
+    flips2: [],
+    pockets: [], kickbacks: [],
+    fit: { s: 0.8, cx: 182, cy: 262 },
   },
-  { // 4. 지그재그 협곡 — 톱니 모양 옆벽, 넓고 긴 플리퍼, 공중 사선 슬링
-    id: 'canyon', name: '지그재그 협곡', gimmick: 'crumble',
+  { // 5. 쌍둥이 포켓 — 발사대가 왼쪽, 양쪽 벽에 킥아웃 구멍, 넓은 플리퍼
+    id: 'twinpocket', name: '쌍둥이 포켓', gimmick: 'whirl', lane: 'L',
     path: [
-      [[327, 20], [44, 20], [12, 52], [12, 190], [36, 222], [12, 254], [12, 316], [36, 348], [12, 380], [12, 470], [104, 594]],
-      [[345, 286], [321, 318], [345, 350]],
-      [[345, 470], [271, 594]],
+      [[48, 20], [300, 20], [363, 83], [363, 450]],
+      [[330, 505], [290, 596]],
+      [[63, 505], [103, 596]],
     ],
-    slings: [[60, 462, 96, 530, 'L'], [315, 462, 279, 530, 'R']],
-    extra: [],
-    flip: { L: [106, 597], R: [269, 597], len: 68 },
-    fit: { s: 0.8, cx: 188, cy: 270 },
-  },
-  { // 5. 쌍둥이 깔때기 — 천장에 V자 돌기, 가운데 배수구 위 삼각 기둥
-    id: 'twin', name: '쌍둥이 깔때기', gimmick: 'whirl',
-    path: [
-      [[327, 20], [206, 20], [178, 50], [150, 20], [42, 20], [12, 50], [12, 404], [30, 440]],
-      [[62, 503], [110, 598]],
-      [[345, 404], [325, 440]],
-      [[293, 503], [265, 598]],
-      [[187, 516], [170, 552], [204, 552], [187, 516]],
-    ],
-    slings: [[30, 440, 62, 503, 'L'], [325, 440, 293, 503, 'R']],
-    extra: [],
-    flip: { L: [112, 601], R: [263, 601], len: 60 },
-    fit: { s: 0.78, cx: 182, cy: 282 },
+    slings: [[30, 450, 63, 505, 'L'], [363, 450, 330, 505, 'R']],
+    flip: { L: [105, 600], R: [288, 600], len: 66 },
+    flips2: [],
+    pockets: [[52, 215, 14], [341, 215, 14]],
+    kickbacks: [],
+    fit: { s: 0.74, cx: 196, cy: 258, mirror: true },
   },
 ];
 
@@ -1093,6 +1110,11 @@ const GIMMICKS = {
   spin:    { id: 'spin',    name: '회전 막대',   desc: '빙글빙글 도는 막대가 공을 쳐낸다.', spd: 2.6, w: 5, extra: 3 },
   crumble: { id: 'crumble', name: '부서지는 바위', desc: '3번 맞으면 부서지며 큰 피해, 5초 뒤 다시 생긴다.', hits: 3, respawn: 5 },
   whirl:   { id: 'whirl',   name: '소용돌이',     desc: '가까이 온 공을 범퍼 쪽으로 끌어당긴다.', range: 62, pull: 650 },
+};
+// 판 특수 장치 수치
+const DEVICES = {
+  pocket:   { hold: 0.7, speed: 1250, cd: 1.2 },    // 킥아웃 구멍: 잡는 시간, 쏘는 속도, 다시 잡기까지
+  kickback: { vy: -1500, cd: 9 },                   // 킥백: 쳐 올리는 속도, 재충전 시간
 };
 
 /** 판 번호(0~4)를 고른다: 스테이지마다 다른 판, 월드마다 시작 판이 다르다 */
@@ -1106,16 +1128,17 @@ function frameOf(idx) {
   return FRAMES[((idx | 0) % FRAMES.length + FRAMES.length) % FRAMES.length];
 }
 
-/** 적 인스턴스의 맵·위치·이동 범위를 판 모양에 맞게 축척/이동 (startStage에서 1회) */
+/** 적 인스턴스의 맵·위치·이동 범위를 판 모양에 맞게 축척/이동/뒤집기 (startStage에서 1회) */
 function fitEnemy(enemy, frameIdx) {
   if (!enemy || enemy._fit) return enemy;
-  const { s, cx, cy } = frameOf(frameIdx).fit;
-  const X = (x) => cx + (x - MAP_CX) * s, Y = (y) => cy + (y - MAP_CY) * s;
+  const { s, cx, cy, mirror } = frameOf(frameIdx).fit;
+  const sx = mirror ? -s : s;
+  const X = (x) => cx + (x - MAP_CX) * sx, Y = (y) => cy + (y - MAP_CY) * s;
   const m = enemy.map || {};
   enemy.map = {
     b: (m.b || []).map(([x, y, r]) => [X(x), Y(y), r * s]),
-    l: (m.l || []).map(([x, y, w, h]) => [X(x), Y(y), w * s, h * s]),
-    t: (m.t || []).map(([x, y, len, a]) => [X(x), Y(y), len * s, a]),
+    l: (m.l || []).map(([x, y, w, h]) => [mirror ? X(x + w) : X(x), Y(y), w * s, h * s]),
+    t: (m.t || []).map(([x, y, len, a]) => [X(x), Y(y), len * s, mirror ? 180 - a : a]),
     w: (m.w || []).map(([x1, y1, x2, y2]) => [X(x1), Y(y1), X(x2), Y(y2)]),
     e: m.e ? [X(m.e[0]), Y(m.e[1]), m.e[2] * s] : undefined,
   };
@@ -1133,18 +1156,27 @@ function fitEnemy(enemy, frameIdx) {
   return enemy;
 }
 
+function flipperOf(side, px, py, len) {
+  const rest = CONST.FLIPPER_REST * D2R, up = CONST.FLIPPER_UP * D2R;
+  return side === 'L'
+    ? { side, px, py, len, r: 7, rest, up: -up }
+    : { side, px, py, len, r: 7, rest: Math.PI - rest, up: Math.PI + up };
+}
+
 function buildBoard(enemy, frameIdx = 0) {
   const F = FRAME, WR = CONST.WALL_R, fr = frameOf(frameIdx);
+  const LN = LANES[fr.lane] || LANES.R;
   const walls = [];
   const W = (x1, y1, x2, y2, extra) => walls.push({ x1, y1, x2, y2, r: WR, ...extra });
 
-  // ── 공유: 오른쪽 위 진입 곡선 + 발사 레인 ──
-  const ent = arcPts(327, 68, 48, 270, 360, 8);
+  // ── 발사 레인 + 진입 곡선 ──
+  const [ax, ay, ar, a0, a1] = LN.arc;
+  const ent = arcPts(ax, ay, ar, a0, a1, 8);
   for (let i = 1; i < ent.length; i++) W(ent[i - 1][0], ent[i - 1][1], ent[i][0], ent[i][1]);
-  W(375, 68, 375, F.laneFloor + 10);                 // 레인 바깥 벽
-  W(345, F.laneTop, 345, F.laneFloor + 10);          // 레인 / 필드 칸막이
-  W(345, F.laneFloor, 375, F.laneFloor);             // 레인 바닥(플런저)
-  W(345, F.laneTop, 345, 26, { gate: true });        // 일방 문: 필드 공이 레인으로 못 들어감
+  W(LN.outer, 68, LN.outer, F.laneFloor + 10);                 // 레인 바깥 벽
+  W(LN.inner, F.laneTop, LN.inner, F.laneFloor + 10);          // 레인 / 필드 칸막이
+  W(LN.x1, F.laneFloor, LN.x2, F.laneFloor);                   // 레인 바닥(플런저)
+  W(LN.inner, F.laneTop, LN.inner, 26, { gate: true });        // 일방 문: 필드 공이 레인으로 못 들어감
 
   // ── 판 고유 테두리 ──
   for (const path of fr.path) {
@@ -1154,7 +1186,6 @@ function buildBoard(enemy, frameIdx = 0) {
       W(x1, y1, x2, y2);
     }
   }
-  for (const [x1, y1, x2, y2] of fr.extra) W(x1, y1, x2, y2);
   const slings = fr.slings.map(([x1, y1, x2, y2, side]) => ({ x1, y1, x2, y2, r: WR, side, flash: 0 }));
 
   // ── 적 맵 (fitEnemy로 이미 판에 맞춰진 좌표) ──
@@ -1174,23 +1205,33 @@ function buildBoard(enemy, frameIdx = 0) {
   });
   for (const [x1, y1, x2, y2] of (m.w || [])) W(x1, y1, x2, y2, { map: true });
 
-  // ── 플리퍼 (화면 좌표 라디안, 끝점 = 피벗 + len·(cos, sin)) ──
+  // ── 플리퍼: 아래 두 개 + 추가 플리퍼 (같은 쪽은 각도를 함께 씀: G.flippers[side]) ──
   const len = fr.flip.len || CONST.FLIPPER_LEN;
-  const flippers = {
-    L: { px: fr.flip.L[0], py: fr.flip.L[1], len, r: 7, rest: CONST.FLIPPER_REST * D2R, up: -CONST.FLIPPER_UP * D2R },
-    R: { px: fr.flip.R[0], py: fr.flip.R[1], len, r: 7, rest: Math.PI - CONST.FLIPPER_REST * D2R, up: Math.PI + CONST.FLIPPER_UP * D2R },
-  };
+  const flippers = { L: flipperOf('L', fr.flip.L[0], fr.flip.L[1], len), R: flipperOf('R', fr.flip.R[0], fr.flip.R[1], len) };
+  const flipperList = [flippers.L, flippers.R, ...(fr.flips2 || []).map((f) => flipperOf(f.side, f.px, f.py, f.len))];
 
+  // ── 특수 장치 ──
+  const pockets = (fr.pockets || []).map(([x, y, r]) => ({ x, y, r, cd: 0, lit: 0 }));
+  const kickbacks = (fr.kickbacks || []).map(([x, y, w, h]) => ({ x, y, w, h, cd: 0, lit: 0 }));
+
+  const midX = fr.lane === 'L' ? 196 : 178;
   return {
     frame: fr.id, frameName: fr.name, gimmick: gm ? gm.id : '', gimmickName: gm ? gm.name : '', gt: 0,
-    walls, bumpers, lanes, targets, slings, flippers,
-    lane: { x1: 345, x2: 375, y1: F.laneTop, y2: F.laneFloor },
-    plunger: { x: F.plunger[0], y: F.plunger[1] },
+    walls, bumpers, lanes, targets, slings, flippers, flipperList, pockets, kickbacks,
+    lane: { x1: LN.x1, x2: LN.x2, y1: F.laneTop, y2: F.laneFloor, side: fr.lane === 'L' ? 'L' : 'R' },
+    plunger: { x: (LN.x1 + LN.x2) / 2, y: F.plungerY },
+    spawn: [midX, 80],
     drainY: F.drainY,
   };
 }
 
-return { FRAME, FRAMES, GIMMICKS, frameIndexOf, frameOf, fitEnemy, buildBoard };
+/** 공이 발사 레인 띠 안에 있는지 (레인을 벗어나면 필드 공) */
+function inLaneBand(board, x) {
+  const L = board.lane;
+  return L.side === 'L' ? x <= L.x2 + 17 : x >= L.x1 - 17;
+}
+
+return { FRAME, FRAMES, GIMMICKS, DEVICES, frameIndexOf, frameOf, fitEnemy, buildBoard, inLaneBand };
 })();
 // ── render.js ──
 __M.render = (function () {
@@ -1310,6 +1351,12 @@ function initRender(cv) {
     addParts(d.x, d.y, 14, '#ffb030', 260); addParts(d.x, d.y, 8, '#ff4a2a', 200); addParts(d.x, d.y, 4, '#ffffff', 160);
   });
   bus.on('cellPop', (d) => { if (d) addParts(d.x, d.y, 8, '#9dffa8', 150); });
+  bus.on('sonic', (d) => {
+    if (!d) return;
+    rings.push({ x: d.x, y: d.y, r: 46, life: 0.3, max: 0.3 });
+    addParts(d.x, d.y, 8, '#bfefff', 220);
+    shake = Math.max(shake, 2);
+  });
   bus.on('crumble', (d) => {
     if (!d) return;
     const sk = curSkin;
@@ -1475,7 +1522,7 @@ function drawBoard(G, b, world, t) {
     rect(x1 + 4, py + 4, x2 - x1 - 8, 2, '#8a9098');
     rect(x1 + (x2 - x1) / 2 - 2, py + 6, 4, Math.max(0, y2 + 30 - py - 6), '#6b7178');
     if (G.phase === 'launch' || ch > 0) {
-      const gh = 110, gx = x1 - 12, gy = y2 - gh - 10;
+      const gh = 110, gx = L.side === 'L' ? x2 + 6 : x1 - 12, gy = y2 - gh - 10;
       rect(gx - 2, gy - 2, 10, gh + 4, '#000000');
       const n = 10, filled = Math.round(ch * n);
       for (let i = 0; i < n; i++) {
@@ -1510,6 +1557,27 @@ function drawBoard(G, b, world, t) {
   }
   // 장애물
   for (const p of arr(b.bumpers)) drawObstacle(p, b.gimmick, t);
+  // 킥아웃 구멍: 검은 구멍 + 테두리 (준비되면 깜빡임)
+  for (const q of arr(b.pockets)) {
+    const ready = !(num(q.cd) > 0), lit = num(q.lit);
+    circle(q.x, q.y, q.r + 4, '#1a1e22');
+    circle(q.x, q.y, q.r + 2, lit > 0.05 ? '#ffffff' : ready ? (Math.floor(t * 3) % 2 ? '#ffd84a' : '#c99a00') : '#5a5f66');
+    circle(q.x, q.y, q.r - 1, '#05070a');
+    sq(q.x - q.r * 0.35, q.y - q.r * 0.35, 2, hexA('#ffffff', 0.5));
+  }
+  // 킥백: 바닥 화살표 (충전되면 밝게)
+  for (const k of arr(b.kickbacks)) {
+    const ready = !(num(k.cd) > 0), lit = num(k.lit);
+    const cx = k.x + k.w / 2, by = k.y + k.h;
+    const c = lit > 0.05 ? '#ffffff' : ready ? '#7be08a' : '#3a4a40';
+    rect(k.x + 4, by - 6, k.w - 8, 4, c);
+    for (let i = 0; i < 3; i++) {
+      if (!ready && i * 0.33 > 1 - num(k.cd) / 9) continue;
+      ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.lineCap = 'butt'; ctx.beginPath();
+      const yy = by - 14 - i * 12;
+      ctx.moveTo(cx - 8, yy + 6); ctx.lineTo(cx, yy); ctx.lineTo(cx + 8, yy + 6); ctx.stroke();
+    }
+  }
 }
 
 function drawBumperBody(x, y, r, f, t, sk) {
@@ -1635,8 +1703,9 @@ function flipperTip(side, fb, gf) {
 function drawFlippers(G, b) {
   const F = b.flippers; if (!F) return;
   const jam = G.enemy && G.enemy.status && num(G.enemy.status.jam) > 0 ? G.enemy.status.jamSide : '';
-  for (const side of ['L', 'R']) {
-    const fb = F[side]; if (!fb || typeof fb.px !== 'number') continue;
+  for (const fb of arr(b.flipperList).length ? b.flipperList : [F.L, F.R]) {
+    if (!fb || typeof fb.px !== 'number') continue;
+    const side = fb.side || (fb === F.L ? 'L' : 'R');
     const gf = G.flippers && G.flippers[side];
     const [tx, ty] = flipperTip(side, fb, gf);
     const r = num(fb.r, 8);
@@ -1842,7 +1911,6 @@ function drawEnemy(G, t) {
 }
 
 // ───────────── 공 ─────────────
-const RAINBOW = ['#ff4a4a', '#ff9a40', '#ffe14d', '#7be08a', '#4fa8ff', '#9b5de5', '#ff7eb6', '#ffffff'];
 function drawBall(b, mat, G) {
   const L = LOOK[mat] || LOOK.normal, r = num(b.r, 9), { x, y } = b;
   if (G && num(G.furyT) > 0) circle(x, y, r + 4, Math.floor(num(G.time) * 10) % 2 ? '#ff3030' : '#ffb030');   // 분노
@@ -1902,11 +1970,11 @@ function drawBall(b, mat, G) {
       rect(x - w / 2, y - r - 8, Math.max(2, w * p), 2, p > 0.5 ? '#7be08a' : p > 0.25 ? '#ffd84a' : '#ff4a4a');
     }
   }
-  const rb = num(b.rb);                       // 무지개 충전 칸
-  for (let i = 0; i < rb; i++) {
-    const a = num(G && G.time) * 3 + (i / Math.max(1, rb)) * TAU;
-    sq(x + Math.cos(a) * (r + 6), y + Math.sin(a) * (r + 6), 4, RAINBOW[i % RAINBOW.length]);
+  if (num(b.acc) > 0.05) {                    // 가속 페달: 쌓인 만큼 꼬리 점
+    const n = Math.min(5, Math.round(num(b.acc) * 5)), sp = Math.hypot(num(b.vx), num(b.vy)) || 1;
+    for (let i = 1; i <= n; i++) sq(x - b.vx / sp * (r + i * 4), y - b.vy / sp * (r + i * 4), 2, i % 2 ? '#ffd84a' : '#ff8a3d');
   }
+  if (b.slowed) circle(x, y, r + 3, null, hexA('#8fe3ff', 0.8), 2);   // 시간 감속
 }
 
 function drawRings(dt) {
@@ -2233,7 +2301,7 @@ __M.main = (function () {
 // 바운스 브레이커 — 게임 상태·루프·입력·데미지·적 능력 (개발자 소유, docs/구조.md · 기획서 8장)
 const { CONST: C, DAMAGE, STATUS, MATERIALS, ABIL_LABEL, TRAIT_AWAKEN, makeEnemy, rollCards, worldOf, calcStats } = __M.data;
 const { bus, store } = __M.events;
-const { buildBoard, fitEnemy, frameIndexOf, GIMMICKS } = __M.board;
+const { buildBoard, fitEnemy, frameIndexOf, frameOf, inLaneBand, GIMMICKS, DEVICES } = __M.board;
 const { hitCapsule, hitCircle, clampSpeed, inRect } = __M.physics;
 const DEBUG = new URLSearchParams(location.search).has('debug');
 const R = __M.render || null;
@@ -2246,7 +2314,7 @@ const LOOP_SAFE_Y = 560;    // 이보다 아래(플리퍼 근처)는 루프 감�
 const KICK_FREE = 10;       // 플리퍼 없이 이 횟수까지는 튕김 힘 100%
 const KICK_DECAY = 0.8;     // 그 뒤 한 번마다 힘 ×0.8
 const LANE_STUCK = 2.5;     // 발사 레인에 이 시간(초) 넘게 있으면 발사대로 되돌림
-const DIRECT = new Set(['bumper', 'lane', 'target', 'body', 'bank', 'chain', 'blast']);
+const DIRECT = new Set(['bumper', 'lane', 'target', 'body', 'bank', 'chain', 'blast', 'pocket', 'sonic']);
 const rng = Math.random;
 
 let G = null;
@@ -2279,7 +2347,7 @@ function newRun() {
     cards: [], stats: {},
     // 추가 필드 (개발자): render/ui 참고용
     pausedFrom: null, launchT: 0, chainCount: 0, saveFlash: 0, muted: !!store.get('bb.muted', false),
-    combo: 0, ballDmg: 0, furyN: 0, furyT: 0, blastQ: [],   // 특성: 도미노 연속 타수 · 저금통 · 분노 게이지 · 연쇄 폭발 대기
+    ballDmg: 0, furyN: 0, furyT: 0, blastQ: [],   // 특성: 저금통 · 분노 게이지 · 연쇄 폭발 대기
   };
   G.stats = calcStats(G);
   if (DEBUG) { window.__bb.G = G; }
@@ -2319,7 +2387,7 @@ function toLaunch() {
   const b = makeBall(board.plunger.x, board.plunger.y, 0, 0, true);
   b.rest = true;
   G.balls = [b];
-  G.combo = 0; G.ballDmg = 0;
+  G.ballDmg = 0;
   G.plunger.charge = 0; G.plunger.holding = false;
   setPhase('launch');
 }
@@ -2337,8 +2405,9 @@ function launch(power) {
   const tw = G.stats.twin;                    // 쌍둥이 공
   if (tw && rng() < tw.chance) {
     const n = 1 + (rng() < tw.extra ? 1 : 0);
-    for (let i = 0; i < n && G.balls.length < C.MULTI_MAX; i++) G.balls.push(makeBall(178 + (i ? 40 : -40), 80, i ? 220 : -220, 0));
-    bus.emit('ability', { t: 'twin', label: n > 1 ? '세쌍둥이!' : '쌍둥이!', x: 178, y: 140 });
+    const [sx, sy] = board.spawn;
+    for (let i = 0; i < n && G.balls.length < C.MULTI_MAX; i++) G.balls.push(makeBall(sx + (i ? 40 : -40), sy, i ? 220 : -220, 0));
+    bus.emit('ability', { t: 'twin', label: n > 1 ? '세쌍둥이!' : '쌍둥이!', x: sx, y: sy + 60 });
   }
   bus.emit('launch', { power });
 }
@@ -2389,7 +2458,7 @@ function hit(src, obj, x, y, amt = 0) {
   const st = e.status, S = G.stats;
   const direct = DIRECT.has(src);
   const dot = src === 'burn' || src === 'poison';
-  const fixed = src === 'echo' || src === 'piggy' || src === 'rainbow';   // amt 를 그대로 쓰는 특성 피해
+  const fixed = src === 'echo' || src === 'piggy' || src === 'spark';   // amt 를 그대로 쓰는 특성 피해
   x = x ?? e.x; y = y ?? e.y;
   // 2. 재질 효과 (막혀도 적용)
   if (direct) applyMaterial(src);
@@ -2409,12 +2478,19 @@ function hit(src, obj, x, y, amt = 0) {
   else {
     raw = DAMAGE[src] || 0;
     raw *= src === 'bumper' ? S.bumperMul : src === 'lane' ? S.laneMul
-         : (src === 'target' || src === 'bank') ? S.targetMul : src === 'body' ? S.bodyMul : 1;
+         : (src === 'target' || src === 'bank' || src === 'pocket') ? S.targetMul : src === 'body' ? S.bodyMul
+         : src === 'sonic' ? (S.sonic ? S.sonic.mul : 1) : src === 'blast' ? (S.blast ? S.blast.mul : 1) : 1;
   }
   // 6. 공통 배수 + 특성
   if (!dot && !fixed) raw *= S.dmgMul;
   if (direct && S.comet && curBall && Math.hypot(curBall.vx, curBall.vy) >= S.comet.speed) raw *= S.comet.mul;
-  if (direct && S.domino) raw *= 1 + Math.min(S.domino.max, G.combo * S.domino.step);
+  if (direct && curBall) {
+    const cb = curBall;
+    if (S.slowmo && cb.slowed) raw *= 1 + S.slowmo.bonus;                 // 시간 감속
+    if (S.feather && cb.vy < 0) raw *= 1 + S.feather.bonus;               // 깃털 공: 올라가는 중
+    if (src === 'bumper' && cb.acc) raw *= 1 + cb.acc;                     // 가속 페달
+    if (S.cell && cb.small) raw *= 1 + S.cell.smallDmg;                    // 세포: 작은 공
+  }
   if (!dot && !fixed && G.furyT > 0 && S.fury) raw *= S.fury.mul;
   // 7. 원소
   let kind = 'normal';
@@ -2439,7 +2515,7 @@ function hit(src, obj, x, y, amt = 0) {
   G.score += dmg * C.SCORE_PER_DMG;
   bus.emit('hit', { x, y, amount: dmg, kind, src });
   if (direct) {
-    G.combo++; G.ballDmg += dmg;
+    G.ballDmg += dmg;
     if (S.fury && ++G.furyN >= S.fury.hits) {
       G.furyN = 0; G.furyT = S.fury.dur;
       bus.emit('ability', { t: 'fury', label: '분노 폭발!', x: e.x, y: e.y });
@@ -2605,7 +2681,6 @@ function triggerAbility(a) {
       if (!S.jamImmune) { st.jam = a.dur; statusOn('jam', true); }
       break;
     case 'adapt':
-      if (S.adaptImmune) return false;        // 고요한 마음 ★
       st.adapt = a.dur; statusOn('adapt', true); break;
     default: return false;
   }
@@ -2690,24 +2765,41 @@ function kickFactor(b) {
   return n <= 0 ? 1 : Math.max(0, Math.pow(KICK_DECAY, n));
 }
 
+// 가속 페달: 범퍼·슬링에 튕길수록 공이 더 세게 튕겨 나감 (공마다 쌓임, 새 공이면 초기화)
+function accelOf(b) { return 1 + (b.acc || 0); }
+function addAccel(b) {
+  const a = G.stats.accel;
+  if (a) b.acc = Math.min(a.max, (b.acc || 0) + a.step);
+}
+
 function collideBall(b) {
   const S = G.stats, e = G.enemy;
   // 벽
   for (const w of board.walls) {
     if (w.gate && b.inLane) continue;
-    const c = hitCapsule(b, w.x1, w.y1, w.x2, w.y2, w.r, { bounce: C.WALL_BOUNCE, jitter: w.map ? JITTER : 0 });
-    if (c && c.vn < -250 && G.time - b.wallT > 0.08) { b.wallT = G.time; emitBump(b.x, b.y, 'wall', -c.vn / 1500); }
+    const c = hitCapsule(b, w.x1, w.y1, w.x2, w.y2, w.r, { bounce: S.wallBounce, jitter: w.map ? JITTER : 0 });
+    if (c && c.vn < -250 && G.time - b.wallT > 0.08) {
+      b.wallT = G.time; emitBump(b.x, b.y, 'wall', -c.vn / 1500);
+      if (S.slick && !b.inLane) {             // 미끄러운 공: 빨라지기(★) + 불꽃 피해
+        if (S.slick.boost) { b.vx *= 1 + S.slick.boost; b.vy *= 1 + S.slick.boost; }
+        if (c.vn < -300 && G.time - (b.sparkT ?? -99) > 0.15 && e && e.hp > 0) {
+          b.sparkT = G.time;
+          hit('spark', null, b.x, b.y, S.slick.spark * S.dmgMul);
+          if (G.phase !== 'play') return;
+        }
+      }
+    }
   }
   if (b.inLane) return;
   // 슬링샷
   for (const s of board.slings) {
-    const c = hitCapsule(b, s.x1, s.y1, s.x2, s.y2, s.r, { bounce: 0.5, kick: C.SLING_KICK * S.kickMul * kickFactor(b), jitter: JITTER });
-    if (c) { b.kicks++; s.flash = 1; emitBump(b.x, b.y, 'sling', 0.8); }
+    const c = hitCapsule(b, s.x1, s.y1, s.x2, s.y2, s.r, { bounce: 0.5, kick: C.SLING_KICK * S.kickMul * accelOf(b) * kickFactor(b), jitter: JITTER });
+    if (c) { b.kicks++; s.flash = 1; emitBump(b.x, b.y, 'sling', 0.8); addAccel(b); }
   }
   // 범퍼 (판마다 다른 장애물 — board.gimmick)
   for (const p of board.bumpers) {
     if (p.broken > 0) continue;
-    const kick = C.BUMPER_KICK * S.kickMul * kickFactor(b);
+    const kick = C.BUMPER_KICK * S.kickMul * accelOf(b) * kickFactor(b);
     let c;
     if (p.kind === 'spin') {
       const gm = GIMMICKS.spin, L = p.r0 + gm.extra, ca = Math.cos(p.ang) * L, sa = Math.sin(p.ang) * L;
@@ -2719,7 +2811,7 @@ function collideBall(b) {
       c = hitCircle(b, p.x, p.y, p.r, { bounce: 0.6, kick: kick * big, vx: p.vx, vy: p.vy, maxV: C.ENTITY_MAX_V, jitter: JITTER });
     }
     if (c) {
-      b.kicks++; p.flash = 1; emitBump(p.x, p.y, 'bumper', 1);
+      b.kicks++; p.flash = 1; emitBump(p.x, p.y, 'bumper', 1); addAccel(b);
       const fresh = G.time - (p._t ?? -99) >= C.HIT_CD;
       const dealt = hit('bumper', p, p.x, p.y);
       if (G.phase !== 'play') return;
@@ -2764,13 +2856,6 @@ function collideBall(b) {
         b.touchT = G.time; b.touch = (b.touch || 0) + 1; b.growT = 0;
         if (b.touch >= (S.cell ? S.cell.touches : 3)) { b.alive = false; bus.emit('cellPop', { x: b.x, y: b.y }); }
       }
-      if (S.rainbow && b.rb > 0) {             // 무지개 충전 터뜨리기
-        const amt = DAMAGE.body * S.bodyMul * S.dmgMul * b.rb * S.rainbow.mul;
-        bus.emit('ability', { t: 'rainbow', label: `무지개 ×${b.rb}`, x: e.x, y: e.y });
-        b.rb = 0;
-        hit('rainbow', null, e.x, e.y - e.r, amt);
-        if (G.phase !== 'play') return;
-      }
     }
     for (const g of e.guards.slice()) {
       const c2 = hitCircle(b, g.x, g.y, g.r, { bounce: 0.6, kick: 220 * kickFactor(b), vx: g.vx, vy: g.vy, maxV: C.ENTITY_MAX_V, jitter: JITTER });
@@ -2778,18 +2863,37 @@ function collideBall(b) {
     }
   }
   // 플리퍼
-  for (const k of ['L', 'R']) {
-    const f = G.flippers[k], bf = board.flippers[k];
+  for (const bf of board.flipperList) {     // 아래 플리퍼 + 추가 플리퍼 (같은 쪽은 각도 공유)
+    const f = G.flippers[bf.side];
     const tx = bf.px + Math.cos(f.angle) * bf.len, ty = bf.py + Math.sin(f.angle) * bf.len;
     const c = hitCapsule(b, bf.px, bf.py, tx, ty, bf.r, { bounce: 0.3, omega: f.av, px: bf.px, py: bf.py });
-    if (c) { b.kicks = 0; G.combo = 0; }   // 플리퍼에 닿으면 튕김 힘 원상 복구, 도미노 초기화
+    if (c) b.kicks = 0;          // 플리퍼에 닿으면 튕김 힘 원상 복구
     if (c && Math.abs(f.av) > 1 && c.vn < -100) emitBump(b.x, b.y, 'flipper', Math.abs(f.av) / C.FLIPPER_SPEED);
+  }
+  // 킥아웃 구멍: 공을 잡았다가 적을 향해 쏜다
+  for (const q of board.pockets) {
+    if (q.cd > 0 || b.hold > 0) continue;
+    if (Math.hypot(b.x - q.x, b.y - q.y) < q.r) {
+      b.hold = DEVICES.pocket.hold; b.pocket = q; b.x = q.x; b.y = q.y; b.vx = 0; b.vy = 0;
+      q.lit = 1; q.cd = DEVICES.pocket.hold + DEVICES.pocket.cd;
+      emitBump(q.x, q.y, 'target', 0.9);
+      hit('pocket', q, q.x, q.y);
+      if (G.phase !== 'play') return;
+    }
+  }
+  // 킥백: 바깥 통로로 빠지는 공을 위로 쳐 올림 (재충전 시간 있음)
+  for (const k of board.kickbacks) {
+    if (k.cd > 0 || b.vy < 0) continue;
+    if (inRect(b.x, b.y, k.x, k.y, k.w, k.h)) {
+      b.vx = 20; b.vy = DEVICES.kickback.vy; k.cd = DEVICES.kickback.cd; k.lit = 1;
+      emitBump(b.x, b.y, 'sling', 1);
+      bus.emit('ability', { t: 'kickback', label: '킥백!', x: b.x + 40, y: b.y - 30 });
+    }
   }
   // 레인 (통과형)
   for (const l of board.lanes) {
     if (inRect(b.x, b.y, l.x, l.y, l.w, l.h) && G.time - (l._t ?? -99) >= C.LANE_CD) {
       l.lit = 1; emitBump(l.x + l.w / 2, l.y + l.h / 2, 'lane', 0.5);
-      if (S.rainbow) b.rb = Math.min(S.rainbow.max, (b.rb || 0) + 1);
       hit('lane', l, l.x + l.w / 2, l.y + l.h / 2);
       if (G.phase !== 'play') return;
     }
@@ -2829,6 +2933,20 @@ function physicsStep(dt) {
   const S = G.stats, e = G.enemy, st = e.status;
   for (const b of G.balls) {
     if (!b.alive || b.rest) continue;
+    if (b.hold > 0) {                          // 킥아웃 구멍에 잡힘
+      b.hold -= dt; b.x = b.pocket.x; b.y = b.pocket.y; b.vx = 0; b.vy = 0;
+      if (b.hold <= 0) {
+        const tx = e && e.hp > 0 ? e.x : C.W / 2, ty = e && e.hp > 0 ? e.y : 150;
+        const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1;
+        b.vx = dx / d * DEVICES.pocket.speed; b.vy = dy / d * DEVICES.pocket.speed; b.kicks = 0;
+        bus.emit('bump', { x: b.x, y: b.y, type: 'sling', strength: 1 });
+      }
+      continue;
+    }
+    // 시간 감속: 적 근처에서 공 시간이 느려짐
+    b.slowed = !!(S.slowmo && !b.inLane && e && e.hp > 0 && Math.hypot(b.x - e.x, b.y - e.y) < e.r + S.slowmo.range);
+    const bdt = b.slowed ? dt * (1 - S.slowmo.slow) : dt;
+    dt = bdt;
     b.vy += C.GRAVITY * (S.feather && b.vy < 0 && !b.inLane ? 1 - S.feather.cut : 1) * dt;   // 깃털 공
     if (!b.inLane) {
       if (st.tilt > 0) b.vx += (st.tiltAx || 0) * st.tiltDir * S.forceMul * dt;
@@ -2846,10 +2964,24 @@ function physicsStep(dt) {
     collideBall(b);
     curBall = null;
     if (G.phase !== 'play') return;
+    // 음속 돌파: 속도가 기준을 넘는 순간 충격파
+    if (S.sonic && !b.inLane) {
+      const sp = Math.hypot(b.vx, b.vy);
+      if (b.sonicCd > 0) b.sonicCd -= dt;
+      if (sp >= S.sonic.speed && (b.lastSp || 0) < S.sonic.speed && !(b.sonicCd > 0) && e.hp > 0) {
+        b.sonicCd = S.sonic.cd;
+        bus.emit('sonic', { x: b.x, y: b.y, vx: b.vx, vy: b.vy });
+        hit('sonic', null, e.x, e.y);
+        if (G.phase !== 'play') return;
+      }
+      b.lastSp = sp;
+    }
+    dt = SUB;
     if (b.inLane) {
       b.laneT = (b.laneT || 0) + dt;
-      if (b.x >= 328 && b.laneT > LANE_STUCK && G.balls.length === 1) { toLaunch(); return; }   // 레인에 갇힘 → 다시 발사대로(공 잃지 않음)
-      if (b.x < 328) { b.inLane = false; b.r = S.ballR; }
+      const band = inLaneBand(board, b.x);
+      if (band && b.laneT > LANE_STUCK && G.balls.length === 1) { toLaunch(); return; }   // 레인에 갇힘 → 다시 발사대로(공 잃지 않음)
+      if (!band) { b.inLane = false; b.r = S.ballR; }
       else if (b.y > board.plunger.y && b.vy > 0) {   // 레인으로 떨어져 돌아온 공 → 자동 재발사
         b.y = board.plunger.y; b.vx = 0; b.vy = -C.LAUNCH_MAX * 0.9;
       }
@@ -2912,6 +3044,8 @@ function update(dt) {
   for (const p of board.bumpers) p.flash = Math.max(0, p.flash - dt * 4);
   for (const s of board.slings) s.flash = Math.max(0, s.flash - dt * 4);
   for (const l of board.lanes) l.lit = Math.max(0, l.lit - dt * 2);
+  for (const q of board.pockets) { q.lit = Math.max(0, q.lit - dt * 2); if (q.cd > 0) q.cd -= dt; }
+  for (const k of board.kickbacks) { k.lit = Math.max(0, k.lit - dt * 2); if (k.cd > 0) k.cd = Math.max(0, k.cd - dt); }
   for (const t of board.targets) {
     t.flash = Math.max(0, t.flash - dt * 4);
     if (t.down) { t.timer -= dt; if (t.timer <= 0) { t.down = false; t.timer = 0; } }
@@ -3123,6 +3257,7 @@ if (DEBUG) {
     get G() { return G; }, set G(v) { /* 읽기 전용 */ },
     get board() { return board; }, set board(v) { /* 읽기 전용 */ },
     view: () => view,
+    boardFor(stage, fi) { const e = fitEnemy(makeEnemy(stage), fi); return { board: buildBoard(e, fi), enemy: e, frame: frameOf(fi) }; },
   };
 }
 
