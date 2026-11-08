@@ -1,7 +1,7 @@
 // 바운스 브레이커 — 게임 상태·루프·입력·데미지·적 능력 (개발자 소유, docs/구조.md · 기획서 8장)
 import { CONST as C, DAMAGE, STATUS, MATERIALS, ABIL_LABEL, makeEnemy, rollCards, worldOf, calcStats } from './data.js';
 import { bus, store } from './events.js';
-import { buildBoard, fitEnemy } from './board.js';
+import { buildBoard, fitEnemy, frameIndexOf, GIMMICKS } from './board.js';
 import { hitCapsule, hitCircle, clampSpeed, inRect } from './physics.js';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -63,8 +63,9 @@ function setPhase(p) {
 function startStage(n) {
   G.stage = n;
   G.world = worldOf(n);
-  G.enemy = fitEnemy(makeEnemy(n), G.world);
-  board = buildBoard(G.enemy, G.world);
+  G.frame = frameIndexOf(n);                       // 판은 스테이지마다 바뀐다
+  G.enemy = fitEnemy(makeEnemy(n), G.frame);
+  board = buildBoard(G.enemy, G.frame);
   if (DEBUG) window.__bb.board = board;
   G.chainCount = 0; G.multiT = 0; G.cards = [];
   G.flippers.L.angle = board.flippers.L.rest; G.flippers.R.angle = board.flippers.R.rest;
@@ -430,10 +431,35 @@ function collideBall(b) {
     const c = hitCapsule(b, s.x1, s.y1, s.x2, s.y2, s.r, { bounce: 0.5, kick: C.SLING_KICK * S.kickMul * kickFactor(b), jitter: JITTER });
     if (c) { b.kicks++; s.flash = 1; emitBump(b.x, b.y, 'sling', 0.8); }
   }
-  // 범퍼
+  // 범퍼 (판마다 다른 장애물 — board.gimmick)
   for (const p of board.bumpers) {
-    const c = hitCircle(b, p.x, p.y, p.r, { bounce: 0.6, kick: C.BUMPER_KICK * S.kickMul * kickFactor(b), jitter: JITTER });
-    if (c) { b.kicks++; p.flash = 1; emitBump(p.x, p.y, 'bumper', 1); hit('bumper', p, p.x, p.y); if (G.phase !== 'play') return; }
+    if (p.broken > 0) continue;
+    const kick = C.BUMPER_KICK * S.kickMul * kickFactor(b);
+    let c;
+    if (p.kind === 'spin') {
+      const gm = GIMMICKS.spin, L = p.r0 + gm.extra, ca = Math.cos(p.ang) * L, sa = Math.sin(p.ang) * L;
+      c = hitCapsule(b, p.x - ca, p.y - sa, p.x + ca, p.y + sa, gm.w,
+        { bounce: 0.55, kick: kick * 0.75, omega: p.av || 0, px: p.x, py: p.y, jitter: JITTER });
+      if (!c) c = hitCircle(b, p.x, p.y, 7, { bounce: 0.55, kick: kick * 0.75, jitter: JITTER });
+    } else {
+      const big = p.kind === 'pulse' ? Math.max(0.8, p.r / p.r0) : 1;
+      c = hitCircle(b, p.x, p.y, p.r, { bounce: 0.6, kick: kick * big, vx: p.vx, vy: p.vy, maxV: C.ENTITY_MAX_V, jitter: JITTER });
+    }
+    if (c) {
+      b.kicks++; p.flash = 1; emitBump(p.x, p.y, 'bumper', 1);
+      const fresh = G.time - (p._t ?? -99) >= C.HIT_CD;
+      hit('bumper', p, p.x, p.y);
+      if (G.phase !== 'play') return;
+      if (p.kind === 'crumble' && fresh) {
+        p.hp--;
+        if (p.hp <= 0) {                 // 부서짐: 큰 피해, 잠시 뒤 다시 생김
+          p.broken = GIMMICKS.crumble.respawn;
+          bus.emit('crumble', { x: p.x, y: p.y, r: p.r });
+          hit('bank', null, p.x, p.y);
+          if (G.phase !== 'play') return;
+        }
+      }
+    }
   }
   // 드롭 타깃
   for (const t of board.targets) {
@@ -478,16 +504,49 @@ function collideBall(b) {
   }
 }
 
+// 장애물 움직임 (board.gimmick) — 서브스텝마다
+function updateGimmicks(dt) {
+  board.gt = (board.gt || 0) + dt;
+  const t = board.gt, frozen = G.enemy && G.enemy.status.freeze > 0;
+  for (const p of board.bumpers) {
+    if (p.kind === 'pulse') {
+      const g = GIMMICKS.pulse;
+      p.r = p.r0 * (1 + g.amp * Math.sin(t * g.spd + p.ph));
+    } else if (p.kind === 'orbit') {
+      const g = GIMMICKS.orbit, a = t * g.spd;     // 모두 같은 위상: 서로 사이 간격은 그대로
+      const nx = p.x0 + Math.cos(a) * g.rad, ny = p.y0 + Math.sin(a) * g.rad;
+      p.vx = (nx - p.x) / dt; p.vy = (ny - p.y) / dt; p.x = nx; p.y = ny;
+    } else if (p.kind === 'spin') {
+      p.av = frozen ? 0 : GIMMICKS.spin.spd; p.ang += p.av * dt;
+    } else if (p.kind === 'crumble' && p.broken > 0) {
+      p.broken -= dt;
+      if (p.broken <= 0) {
+        const near = G.balls.some((b) => Math.hypot(b.x - p.x, b.y - p.y) < p.r + b.r + 4);
+        if (near) p.broken = 0.2;                  // 공이 겹쳐 있으면 조금 뒤에
+        else { p.broken = 0; p.hp = GIMMICKS.crumble.hits; p.flash = 1; }
+      }
+    }
+  }
+}
+
 function physicsStep(dt) {
   flipperUpdate(dt);
   if (G.phase !== 'play') return;
   moveEnemy(dt);
+  updateGimmicks(dt);
   const S = G.stats, e = G.enemy, st = e.status;
   for (const b of G.balls) {
     if (!b.alive || b.rest) continue;
     b.vy += C.GRAVITY * dt;
     if (!b.inLane) {
       if (st.tilt > 0) b.vx += (st.tiltAx || 0) * st.tiltDir * S.forceMul * dt;
+      if (board.gimmick === 'whirl') {               // 소용돌이: 범퍼 쪽으로 끌림
+        const g = GIMMICKS.whirl;
+        for (const p of board.bumpers) {
+          const dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy), R = p.r + g.range;
+          if (d < R && d > p.r) { const f = g.pull * (1 - (d - p.r) / g.range) * S.forceMul; b.vx += dx / d * f * dt; b.vy += dy / d * f * dt; }
+        }
+      }
       if (S.magnet && e.hp > 0) {
         const dx = e.x - b.x, dy = e.y - b.y, d = Math.hypot(dx, dy);
         if (d < 150 && d > 1) { b.vx += dx / d * 140 * dt; b.vy += dy / d * 140 * dt; }

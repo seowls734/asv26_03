@@ -1,6 +1,7 @@
 # 한 파일짜리 HTML 만들기: index.html + css + js 모듈을 play.html 하나로 합친다.
 # play.html 은 서버 없이 더블클릭(file://)으로도, 어느 웹사이트에 올려도 그대로 실행된다.
 # 사용: python tools/build_single.py
+import base64
 import re
 from pathlib import Path
 
@@ -36,6 +37,13 @@ def convert(name, src):
 def main():
     html = (ROOT / 'index.html').read_text(encoding='utf-8')
     css = (ROOT / 'css/style.css').read_text(encoding='utf-8')
+    # 글꼴은 base64 로 CSS 안에 넣는다 (서버 없이도 픽셀 글꼴이 나오게)
+    def font(m):
+        f = ROOT / 'fonts' / m.group(1)
+        return 'url("data:font/woff2;base64,' + base64.b64encode(f.read_bytes()).decode() + '")'
+    css = re.sub(r'url\("\.\./fonts/([\w.-]+\.woff2)"\)', font, css)
+    if '../fonts/' in css:
+        raise SystemExit('style.css 의 글꼴 경로를 바꾸지 못했습니다')
     js = "'use strict';\nvar __M = {};\n" + ''.join(
         convert(n, (ROOT / f'js/{n}.js').read_text(encoding='utf-8')) for n in ORDER)
     js = js.replace('</script', '<\\/script')

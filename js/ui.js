@@ -138,7 +138,9 @@ export function updateUI(G) {
   // HUD
   const w = WORLDS[G.world] || WORLDS[0];
   put(el.hStage, 's' + G.stage, `${G.stage || 1}/${CONST.STAGES}`);
-  put(el.hWorld, 'w' + G.world, esc(w.name));
+  const bd = (typeof api.getBoard === 'function' && api.getBoard()) || {};
+  put(el.hWorld, 'w' + G.world + '|' + (bd.frame || '') + '|' + ph, ph === 'title' || !bd.gimmickName ? esc(w.name)
+    : `${esc(w.name)} · ${esc(bd.frameName)} · <span class="hgim">${esc(bd.gimmickName)}</span>`);
   put(el.hBalls, 'b' + G.ballsLeft, String(G.ballsLeft ?? 0));
   put(el.hScore, 'c' + G.score, (G.score || 0).toLocaleString());
   const owned = (G.materials || []).filter((id) => id !== G.material);

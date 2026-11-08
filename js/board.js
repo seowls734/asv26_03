@@ -1,5 +1,6 @@
 // 바운스 브레이커 — 판 생성 (docs/구조.md 2·5장)
-// 월드마다 테두리가 완전히 다른 판 5종 + 적 전용 맵(b,l,t,w,e).
+// 테두리가 완전히 다른 판 5종 + 적 전용 맵(b,l,t,w,e). 판은 스테이지마다 바뀐다 (frameIndexOf).
+// 판마다 범퍼가 다른 장애물(gimmick)로 바뀐다: 숨쉬는 범퍼·떠도는 범퍼·회전 막대·부서지는 바위·소용돌이.
 // 발사 레인(x 345~375)과 오른쪽 위 진입 곡선만 모든 판이 공유한다.
 import { CONST } from './data.js';
 
@@ -25,7 +26,7 @@ function arcPts(cx, cy, R, a0, a1, n) {
 // flip: 플리퍼 피벗·길이, fit: 적 맵을 판 안쪽에 맞추는 축척(s)과 중심(cx, cy)
 export const FRAMES = [
   { // 1. 팔각 요새 — 크게 깎인 네 모서리, 모서리 빗면이 슬링샷
-    id: 'octagon', name: '팔각 요새',
+    id: 'octagon', name: '팔각 요새', gimmick: 'pulse',
     path: [
       [[327, 20], [116, 20], [12, 124], [12, 440]],
       [[52, 500], [110, 597]],
@@ -38,7 +39,7 @@ export const FRAMES = [
     fit: { s: 0.82, cx: 192, cy: 272 },
   },
   { // 2. 둥근 돔 — 거대한 반구형 천장, 공중에 뜬 사선 슬링
-    id: 'dome', name: '둥근 돔',
+    id: 'dome', name: '둥근 돔', gimmick: 'orbit',
     path: [
       [[327, 20], ...arcPts(180, 232, 168, -55, -180, 18), [12, 470], [108, 604]],
       [[345, 470], [267, 604]],
@@ -49,7 +50,7 @@ export const FRAMES = [
     fit: { s: 0.74, cx: 182, cy: 292 },
   },
   { // 3. 좁은 탑 — 양옆이 안으로 들어온 좁고 긴 통로, 짧은 플리퍼
-    id: 'tower', name: '좁은 탑',
+    id: 'tower', name: '좁은 탑', gimmick: 'spin',
     path: [
       [[327, 20], [88, 20], [46, 62], [46, 466]],
       [[82, 528], [122, 601]],
@@ -62,7 +63,7 @@ export const FRAMES = [
     fit: { s: 0.8, cx: 182, cy: 276 },
   },
   { // 4. 지그재그 협곡 — 톱니 모양 옆벽, 넓고 긴 플리퍼, 공중 사선 슬링
-    id: 'canyon', name: '지그재그 협곡',
+    id: 'canyon', name: '지그재그 협곡', gimmick: 'crumble',
     path: [
       [[327, 20], [44, 20], [12, 52], [12, 190], [36, 222], [12, 254], [12, 316], [36, 348], [12, 380], [12, 470], [104, 594]],
       [[345, 286], [321, 318], [345, 350]],
@@ -74,7 +75,7 @@ export const FRAMES = [
     fit: { s: 0.8, cx: 188, cy: 270 },
   },
   { // 5. 쌍둥이 깔때기 — 천장에 V자 돌기, 가운데 배수구 위 삼각 기둥
-    id: 'twin', name: '쌍둥이 깔때기',
+    id: 'twin', name: '쌍둥이 깔때기', gimmick: 'whirl',
     path: [
       [[327, 20], [206, 20], [178, 50], [150, 20], [42, 20], [12, 50], [12, 404], [30, 440]],
       [[62, 503], [110, 598]],
@@ -89,14 +90,30 @@ export const FRAMES = [
   },
 ];
 
-export function frameOf(world) {
-  return FRAMES[((world | 0) % FRAMES.length + FRAMES.length) % FRAMES.length];
+// 장애물 종류 — 범퍼 자리에 놓인다 (수치는 main.js updateGimmicks / collideBall 이 사용)
+export const GIMMICKS = {
+  pulse:   { id: 'pulse',   name: '숨쉬는 범퍼', desc: '커졌다 작아졌다 한다. 클 때 더 세게 튕긴다.', amp: 0.28, spd: 2.4 },
+  orbit:   { id: 'orbit',   name: '떠도는 범퍼', desc: '범퍼들이 함께 작은 원을 그리며 떠다닌다.', rad: 9, spd: 1.3 },
+  spin:    { id: 'spin',    name: '회전 막대',   desc: '빙글빙글 도는 막대가 공을 쳐낸다.', spd: 2.6, w: 5, extra: 3 },
+  crumble: { id: 'crumble', name: '부서지는 바위', desc: '3번 맞으면 부서지며 큰 피해, 5초 뒤 다시 생긴다.', hits: 3, respawn: 5 },
+  whirl:   { id: 'whirl',   name: '소용돌이',     desc: '가까이 온 공을 범퍼 쪽으로 끌어당긴다.', range: 62, pull: 650 },
+};
+
+/** 판 번호(0~4)를 고른다: 스테이지마다 다른 판, 월드마다 시작 판이 다르다 */
+export function frameIndexOf(stage) {
+  const s = Math.max(1, stage | 0), per = CONST.STAGES_PER_WORLD || 5;
+  const world = Math.floor((s - 1) / per);
+  return ((s - 1) % per + world) % FRAMES.length;
+}
+
+export function frameOf(idx) {
+  return FRAMES[((idx | 0) % FRAMES.length + FRAMES.length) % FRAMES.length];
 }
 
 /** 적 인스턴스의 맵·위치·이동 범위를 판 모양에 맞게 축척/이동 (startStage에서 1회) */
-export function fitEnemy(enemy, world) {
+export function fitEnemy(enemy, frameIdx) {
   if (!enemy || enemy._fit) return enemy;
-  const { s, cx, cy } = frameOf(world).fit;
+  const { s, cx, cy } = frameOf(frameIdx).fit;
   const X = (x) => cx + (x - MAP_CX) * s, Y = (y) => cy + (y - MAP_CY) * s;
   const m = enemy.map || {};
   enemy.map = {
@@ -120,8 +137,8 @@ export function fitEnemy(enemy, world) {
   return enemy;
 }
 
-export function buildBoard(enemy, world = 0) {
-  const F = FRAME, WR = CONST.WALL_R, fr = frameOf(world);
+export function buildBoard(enemy, frameIdx = 0) {
+  const F = FRAME, WR = CONST.WALL_R, fr = frameOf(frameIdx);
   const walls = [];
   const W = (x1, y1, x2, y2, extra) => walls.push({ x1, y1, x2, y2, r: WR, ...extra });
 
@@ -146,7 +163,14 @@ export function buildBoard(enemy, world = 0) {
 
   // ── 적 맵 (fitEnemy로 이미 판에 맞춰진 좌표) ──
   const m = (enemy && enemy.map) || {};
-  const bumpers = (m.b || []).map(([x, y, r]) => ({ x, y, r, flash: 0 }));
+  const gm = GIMMICKS[fr.gimmick] || null;
+  const bumpers = (m.b || []).map(([x, y, r], i) => ({
+    x, y, r, flash: 0,
+    kind: gm ? gm.id : 'bumper', x0: x, y0: y, r0: r, vx: 0, vy: 0, i,
+    ph: i * 1.7,                                   // 숨쉬기·회전 위상
+    ang: (i * 47) % 180 * D2R,                     // 회전 막대 시작 각도
+    hp: gm && gm.id === 'crumble' ? gm.hits : 0, broken: 0,
+  }));
   const lanes = (m.l || []).map(([x, y, w, h]) => ({ x, y, w, h, lit: 0 }));
   const targets = (m.t || []).map(([x, y, len, ang]) => {
     const c = Math.cos(ang * D2R) * len / 2, s = Math.sin(ang * D2R) * len / 2;
@@ -162,7 +186,7 @@ export function buildBoard(enemy, world = 0) {
   };
 
   return {
-    frame: fr.id, frameName: fr.name,
+    frame: fr.id, frameName: fr.name, gimmick: gm ? gm.id : '', gimmickName: gm ? gm.name : '', gt: 0,
     walls, bumpers, lanes, targets, slings, flippers,
     lane: { x1: 345, x2: 375, y1: F.laneTop, y2: F.laneFloor },
     plunger: { x: F.plunger[0], y: F.plunger[1] },
